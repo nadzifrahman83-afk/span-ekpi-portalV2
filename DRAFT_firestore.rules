@@ -1,0 +1,47 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Main collection: yearRecords
+    match /yearRecords/{yearId} {
+      allow read: if true;
+      allow create: if isValidId(yearId) 
+        && isValidYearRecord(incoming())
+        && string(incoming().year) == yearId;
+      allow update: if isValidId(yearId)
+        && isValidYearRecord(incoming());
+      allow delete: if true;
+    }
+
+    // Helper functions
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidYearRecord(data) {
+      return (data.year is int || data.year is float) 
+        && data.year >= 2000 
+        && data.year <= 2100
+        && data.isSubmitted is bool
+        && data.kpis is list
+        && data.monthlyAchievements is map;
+    }
+  }
+}

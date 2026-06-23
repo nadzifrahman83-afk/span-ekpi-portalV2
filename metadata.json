@@ -1,0 +1,6 @@
+{
+  "name": "Sistem E-KPI SPAN",
+  "description": "Sistem Pengurusan Petunjuk Prestasi Utama Digital (E-KPI) bagi Suruhanjaya Perkhidmatan Air Negara (SPAN). Profil korporat, pemantauan interaktif, dan analisis kerangka strategik.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

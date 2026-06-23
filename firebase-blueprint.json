@@ -1,0 +1,211 @@
+{
+  "entities": {
+    "DocumentAttachment": {
+      "title": "DocumentAttachment",
+      "description": "Simulation or attachment of uploaded file content",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "size": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string"
+        },
+        "dataUrl": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "size",
+        "type"
+      ]
+    },
+    "AchievementItem": {
+      "title": "AchievementItem",
+      "description": "Individual monthly KPI achievement progress item",
+      "type": "object",
+      "properties": {
+        "noKpi": {
+          "type": "string"
+        },
+        "pencapaian": {
+          "type": "number"
+        },
+        "persenPencapaian": {
+          "type": "number"
+        },
+        "persenPemberat": {
+          "type": "number"
+        },
+        "persenPencapaianSebenar": {
+          "type": "number"
+        },
+        "statusPencapaian": {
+          "type": "string"
+        },
+        "dokumenSokongan": {
+          "$ref": "DocumentAttachment"
+        }
+      },
+      "required": [
+        "noKpi",
+        "pencapaian",
+        "persenPencapaian",
+        "persenPemberat",
+        "persenPencapaianSebenar",
+        "statusPencapaian"
+      ]
+    },
+    "MonthlyAchievementGroup": {
+      "title": "MonthlyAchievementGroup",
+      "description": "Group of achievements categorized by month",
+      "type": "object",
+      "properties": {
+        "month": {
+          "type": "string"
+        },
+        "isEdited": {
+          "type": "boolean"
+        },
+        "achievements": {
+          "type": "object",
+          "description": "Map from noKpi identifier to AchievementItem"
+        }
+      },
+      "required": [
+        "month",
+        "isEdited",
+        "achievements"
+      ]
+    },
+    "KpiItem": {
+      "title": "KpiItem",
+      "description": "Details of a corporate KPI target definition",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "noKpi": {
+          "type": "string"
+        },
+        "komponen": {
+          "type": "string"
+        },
+        "noSsp": {
+          "type": "string"
+        },
+        "bidangUtama": {
+          "type": "string"
+        },
+        "bahagian": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "objektif": {
+          "type": "string"
+        },
+        "kpi": {
+          "type": "string"
+        },
+        "inisiatif": {
+          "type": "string"
+        },
+        "pengukuran": {
+          "type": "string"
+        },
+        "statusPencapaianTahunSebelum": {
+          "type": "string"
+        },
+        "sasaran1": {
+          "type": "number"
+        },
+        "justifikasiSasaran1": {
+          "type": "string"
+        },
+        "sasaran2": {
+          "type": "number"
+        },
+        "justifikasiSasaran2": {
+          "type": "string"
+        },
+        "sasaran3": {
+          "type": "number"
+        },
+        "justifikasiSasaran3": {
+          "type": "string"
+        },
+        "sasaran4": {
+          "type": "number"
+        },
+        "justifikasiSasaran4": {
+          "type": "string"
+        },
+        "sasaranAkhir": {
+          "type": "number"
+        },
+        "pemberat": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "noKpi",
+        "komponen",
+        "noSsp",
+        "bidangUtama",
+        "bahagian",
+        "objektif",
+        "kpi",
+        "inisiatif",
+        "pengukuran",
+        "sasaran1",
+        "sasaran2",
+        "sasaran3",
+        "sasaran4",
+        "sasaranAkhir",
+        "pemberat"
+      ]
+    },
+    "kpiYearData": {
+      "title": "kpiYearData",
+      "description": "Complete year configuration including KPIs and monthly achievements",
+      "type": "object",
+      "properties": {
+        "year": {
+          "type": "number"
+        },
+        "isSubmitted": {
+          "type": "boolean"
+        },
+        "kpis": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "monthlyAchievements": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "year",
+        "isSubmitted",
+        "kpis",
+        "monthlyAchievements"
+      ]
+    }
+  },
+  "firestore": {
+    "/yearRecords/{yearId}": {
+      "schema": "kpiYearData",
+      "description": "Yearly corporate KPIs and monthly achievement tracking documents"
+    }
+  }
+}
