@@ -77,6 +77,16 @@ function handleUppercase(text: string): string {
   return text ? text.toUpperCase() : '';
 }
 
+// Utility to get current month as MonthType
+function getCurrentMonth(): MonthType {
+  const monthIdx = new Date().getMonth(); // 0 - 11
+  const months: MonthType[] = [
+    'JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE',
+    'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'
+  ];
+  return months[monthIdx];
+}
+
 export default function App() {
   // State Initialization
   const [yearRecords, setYearRecords] = useState<Record<number, kpiYearData>>(() => {
@@ -92,12 +102,29 @@ export default function App() {
   });
 
   const [selectedYear, setSelectedYear] = useState<number>(2026);
-  const [selectedMonth, setSelectedMonth] = useState<MonthType>('MARCH');
+  const [selectedMonth, setSelectedMonth] = useState<MonthType>(getCurrentMonth());
   const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'LAPORAN' | 'KERANGKA' | 'PENCAPAIAN'>('DASHBOARD');
 
   // Doughnut chart hover interactions
   const [isDoughnutHovered, setIsDoughnutHovered] = useState(false);
   const [hoveredKpiId, setHoveredKpiId] = useState<string | null>(null);
+
+  // Trend chart hover interaction
+  const [hoveredTrendPoint, setHoveredTrendPoint] = useState<{ month: string; value: number; x: number; y: number } | null>(null);
+
+  // Bar chart hover interaction
+  const [hoveredBarKpi, setHoveredBarKpi] = useState<{
+    id: string;
+    noKpi: string;
+    kpiText: string;
+    pencapaian: number;
+    target: number;
+    unit: string;
+    persen: number;
+    pemberat: number;
+    x: number;
+    y: number;
+  } | null>(null);
 
   // Year Selection Modal state
   const [isKpiYearOpen, setIsKpiYearOpen] = useState(false);
@@ -107,6 +134,10 @@ export default function App() {
   const [isAddKpiOpen, setIsAddKpiOpen] = useState(false);
   const [editingKpiId, setEditingKpiId] = useState<string | null>(null);
   const [isUnlockModalOpen, setIsUnlockModalOpen] = useState(false);
+
+  // Pop up details state for specific KPI click
+  const [selectedKpiForModal, setSelectedKpiForModal] = useState<KpiItem | null>(null);
+  const [hoveredModalTrendPoint, setHoveredModalTrendPoint] = useState<{ month: MonthType; value: number; x: number; y: number } | null>(null);
 
   // Search filter for Dashboard/Kerangka
   const [searchQuery, setSearchQuery] = useState('');
@@ -1328,10 +1359,10 @@ export default function App() {
                   <div className="flex flex-col sm:flex-row items-stretch gap-4 sm:gap-0 bg-slate-50/50 rounded-2xl p-2 border border-slate-100 flex-1 justify-around">
                     {/* Box 1: Average Semasa */}
                     <div className="px-6 py-2.5 flex flex-col items-center justify-center text-center flex-1">
-                      <span className="text-[12px] text-slate-500 uppercase font-normal tracking-widest mb-1.5">Purata Semasa</span>
+                      <span className="text-[12px] text-slate-500 uppercase font-normal tracking-widest mb-1.5">PENCAPAIAN KESELURUHAN</span>
                       <div className="flex items-center justify-center">
-                        <span id="average_raw_completion_val" className={`text-[35px] font-extrabold tracking-tight leading-none ${getGradeColorStyle(averageRawCompletion)}`}>
-                          {averageRawCompletion.toFixed(1)}%
+                        <span id="average_raw_completion_val" className={`text-[35px] font-extrabold tracking-tight leading-none ${getGradeColorStyle(totalWeightedProgress)}`}>
+                          {totalWeightedProgress.toFixed(1)}%
                         </span>
                       </div>
                     </div>
@@ -1344,22 +1375,25 @@ export default function App() {
                       const prevMonth = currMonthIdx > 0 ? MONTHS_LIST[currMonthIdx - 1] : null;
                       const prevMonthGroup = prevMonth ? currentYearData.monthlyAchievements[prevMonth] : null;
                       
-                      const prevAverageRawCompletion = prevMonthGroup && currentYearData.kpis.length > 0
-                        ? Number((currentYearData.kpis.reduce((sum, kpi) => {
-                            const ach = prevMonthGroup.achievements[kpi.noKpi];
-                            return sum + (ach ? ach.persenPencapaian : 0);
-                          }, 0) / currentYearData.kpis.length).toFixed(1))
+                      const prevTotalWeightedProgress = prevMonthGroup && currentYearData.kpis.length > 0
+                        ? (() => {
+                            const sumVal = currentYearData.kpis.reduce((sum, kpi) => {
+                              const ach = prevMonthGroup.achievements[kpi.noKpi];
+                              return sum + (ach ? ach.persenPencapaianSebenar : 0);
+                            }, 0);
+                            return Math.floor(sumVal * 10) / 10;
+                          })()
                         : 0.0;
 
-                      const trendGap = Number((averageRawCompletion - prevAverageRawCompletion).toFixed(1));
+                      const trendGap = Number((totalWeightedProgress - prevTotalWeightedProgress).toFixed(1));
                       const textMonthName = prevMonth ? prevMonth : 'TIADA';
 
                       return (
                         <div className="px-6 py-2.5 flex flex-col justify-center items-center text-center flex-1 relative">
                           <span className="text-[12px] text-slate-500 uppercase font-normal tracking-widest mb-1.5">Bulan {textMonthName}</span>
                           <div className="flex items-center justify-center gap-1.5 align-baseline">
-                            <span id="prev_average_completion_val" className={`text-[35px] font-extrabold leading-none ${getGradeColorStyle(prevAverageRawCompletion)}`}>
-                              {prevAverageRawCompletion.toFixed(1)}%
+                            <span id="prev_average_completion_val" className={`text-[35px] font-extrabold leading-none ${getGradeColorStyle(prevTotalWeightedProgress)}`}>
+                              {prevTotalWeightedProgress.toFixed(1)}%
                             </span>
                             {trendGap > 0 ? (
                               <span className="text-[15px] text-emerald-600 font-normal">
@@ -1466,17 +1500,19 @@ export default function App() {
                       });
 
                       return (
-                        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between">
+                        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col h-full">
                           <div>
-                            <h4 className="text-lg font-extrabold text-slate-900 tracking-tight">Kedudukan Pencapaian Gred KPI</h4>
+                            <h4 className="text-[16px] font-bold text-[#02315c] font-sans tracking-tight leading-snug">
+                              Kedudukan Pencapaian Gred KPI
+                            </h4>
+                            <p className="text-[12px] text-slate-400 font-sans mt-1">
+                              Bilangan KPI Mengikut Gred Pencapaian
+                            </p>
                           </div>
 
-                          <div className="grid grid-cols-4 gap-2 my-5">
+                          <div className="grid grid-cols-4 gap-2 my-auto">
                             {/* Lemah */}
                             <div className="flex flex-col items-center">
-                              <span className="text-[10px] font-black italic tracking-widest uppercase text-rose-500 mb-1">
-                                LEMAH
-                              </span>
                               <div className="w-full bg-gradient-to-b from-[#ff3366] to-[#ff3399] text-white rounded-2xl p-2.5 shadow-md flex flex-col items-center justify-center text-center border border-rose-400/20">
                                 <span className="text-[8px] font-extrabold uppercase bg-white/10 px-1.5 py-0.5 rounded-full leading-none">
                                   0% - 20%
@@ -1488,13 +1524,13 @@ export default function App() {
                                   {kpiGrades.lemah}
                                 </span>
                               </div>
+                              <span className="text-[10px] font-black italic tracking-widest uppercase text-rose-500 mt-2 text-center">
+                                LEMAH
+                              </span>
                             </div>
 
                             {/* Memuaskan */}
                             <div className="flex flex-col items-center">
-                              <span className="text-[10px] font-black italic tracking-widest uppercase text-amber-500 mb-1">
-                                MEMUASKAN
-                              </span>
                               <div className="w-full bg-gradient-to-b from-amber-400 to-orange-500 text-white rounded-2xl p-2.5 shadow-md flex flex-col items-center justify-center text-center border border-amber-400/20">
                                 <span className="text-[8px] font-extrabold uppercase bg-white/10 px-1.5 py-0.5 rounded-full leading-none">
                                   21% - 70%
@@ -1506,13 +1542,13 @@ export default function App() {
                                   {kpiGrades.memuaskan}
                                 </span>
                               </div>
+                              <span className="text-[10px] font-black italic tracking-widest uppercase text-amber-500 mt-2 text-center">
+                                MEMUASKAN
+                              </span>
                             </div>
 
                             {/* Mencapai */}
                             <div className="flex flex-col items-center">
-                              <span className="text-[10px] font-black italic tracking-widest uppercase text-sky-500 mb-1">
-                                MENCAPAI
-                              </span>
                               <div className="w-full bg-gradient-to-b from-[#00b2fe] to-[#007aff] text-white rounded-2xl p-2.5 shadow-md flex flex-col items-center justify-center text-center border border-blue-400/20">
                                 <span className="text-[8px] font-extrabold uppercase bg-white/10 px-1.5 py-0.5 rounded-full leading-none">
                                   71% - 90%
@@ -1524,13 +1560,13 @@ export default function App() {
                                   {kpiGrades.mencapai}
                                 </span>
                               </div>
+                              <span className="text-[10px] font-black italic tracking-widest uppercase text-sky-500 mt-2 text-center">
+                                MENCAPAI
+                              </span>
                             </div>
 
                             {/* Cemerlang */}
                             <div className="flex flex-col items-center">
-                              <span className="text-[10px] font-black italic tracking-widest uppercase text-emerald-500 mb-1">
-                                CEMERLANG
-                              </span>
                               <div className="w-full bg-gradient-to-b from-emerald-400 to-green-600 text-white rounded-2xl p-2.5 shadow-md flex flex-col items-center justify-center text-center border border-emerald-400/20">
                                 <span className="text-[8px] font-extrabold uppercase bg-white/10 px-1.5 py-0.5 rounded-full leading-none">
                                   91% - 100%
@@ -1542,13 +1578,10 @@ export default function App() {
                                   {kpiGrades.cemerlang}
                                 </span>
                               </div>
+                              <span className="text-[10px] font-black italic tracking-widest uppercase text-emerald-500 mt-2 text-center">
+                                CEMERLANG
+                              </span>
                             </div>
-                          </div>
-
-                          <div className="text-center pt-2">
-                            <span className="text-[10px] text-slate-400 font-extrabold tracking-widest uppercase">
-                              Bilangan KPI Mengikut Gred Pencapaian
-                            </span>
                           </div>
                         </div>
                       );
@@ -1557,7 +1590,12 @@ export default function App() {
                     {/* Part B: Doughnut - % of weightage (pemberat) for every KPI */}
                     <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between">
                       <div>
-                        <h4 className="text-lg font-extrabold text-slate-900 tracking-tight">Agihan Pemberat</h4>
+                        <h4 className="text-[16px] font-bold text-[#02315c] font-sans tracking-tight leading-snug">
+                          Peratus Pemberat Kerangka KPI
+                        </h4>
+                        <p className="text-[12px] text-slate-400 font-sans mt-1">
+                          Pecahan sumbangan pemberat bagi semua KPI dari jumlah total 100.0%
+                        </p>
                       </div>
 
                       <div className="flex items-center justify-center my-2 p-1 overflow-visible">
@@ -1760,7 +1798,7 @@ export default function App() {
                           const areaD = points.length > 0 ? `${pathD} L ${points[points.length - 1].x} ${getY(0)} L ${points[0].x} ${getY(0)} Z` : '';
 
                           return (
-                            <div className="w-full">
+                            <div className="w-full relative">
                               <svg viewBox={`0 0 ${w} ${h}`} width="100%" height="auto" className="mx-auto block overflow-visible max-h-[260px]">
                                 <defs>
                                   <linearGradient id="sweeping-area-grad" x1="0" y1="0" x2="0" y2="1">
@@ -1814,6 +1852,20 @@ export default function App() {
                                   </text>
                                 ))}
 
+                                {/* Hover Crosshair Line */}
+                                {hoveredTrendPoint && (
+                                  <line 
+                                    x1={hoveredTrendPoint.x} 
+                                    y1={getY(100)} 
+                                    x2={hoveredTrendPoint.x} 
+                                    y2={getY(0)} 
+                                    stroke="#004a8d" 
+                                    strokeWidth="1.5" 
+                                    strokeDasharray="3 3" 
+                                    opacity="0.35" 
+                                  />
+                                )}
+
                                 {/* Sweeping Shaded Area background */}
                                 {areaD && (
                                   <path 
@@ -1835,25 +1887,41 @@ export default function App() {
                                 {/* Graph Nodes (Circles) */}
                                 {monthlyData.map((d, idx) => {
                                   const isActive = d.month === selectedMonth;
+                                  const isHovered = hoveredTrendPoint && hoveredTrendPoint.month === d.month;
                                   return (
-                                    <g key={idx}>
+                                    <g 
+                                      key={idx}
+                                      onMouseEnter={() => setHoveredTrendPoint({ month: d.month, value: d.value, x: getX(idx), y: getY(d.value) })}
+                                      onMouseLeave={() => setHoveredTrendPoint(null)}
+                                    >
+                                      {/* Invisible large hover area target */}
                                       <circle 
                                         cx={getX(idx)} 
                                         cy={getY(d.value)} 
-                                        r={isActive ? "6" : "3.5"} 
-                                        className={`transition-all duration-300 cursor-pointer ${
+                                        r="20" 
+                                        fill="transparent" 
+                                        className="cursor-pointer"
+                                      />
+                                      {/* Visible point circle */}
+                                      <circle 
+                                        cx={getX(idx)} 
+                                        cy={getY(d.value)} 
+                                        r={isActive || isHovered ? "6.5" : "3.5"} 
+                                        className={`transition-all duration-200 cursor-pointer ${
                                           isActive 
                                             ? 'fill-[#005fb5] stroke-white stroke-2 shadow-md' 
-                                            : 'fill-white stroke-[#004a8d] stroke-2 hover:fill-slate-100 hover:r-5'
+                                            : isHovered
+                                              ? 'fill-[#004a8d] stroke-white stroke-2 shadow-sm'
+                                              : 'fill-white stroke-[#004a8d] stroke-2 hover:fill-slate-100'
                                         }`}
                                       />
                                       {/* Text value above points */}
                                       <text 
                                         x={getX(idx)} 
-                                        y={getY(d.value) - (isActive ? 9 : 6)} 
+                                        y={getY(d.value) - (isActive || isHovered ? 9 : 6)} 
                                         textAnchor="middle" 
-                                        className={`text-[8px] font-mono font-bold ${
-                                          isActive ? 'fill-[#004a8d] text-[10px] font-black bg-white px-1' : 'fill-slate-500'
+                                        className={`text-[8px] font-mono font-bold transition-all duration-200 ${
+                                          isActive || isHovered ? 'fill-[#004a8d] text-[10px] font-black bg-white px-1' : 'fill-slate-500'
                                         }`}
                                       >
                                         {d.value.toFixed(0)}%
@@ -1862,6 +1930,30 @@ export default function App() {
                                   );
                                 })}
                               </svg>
+
+                              {/* Beautiful Floating Interactive Tooltip */}
+                              {hoveredTrendPoint && (
+                                <div 
+                                  className="absolute bg-slate-900/95 backdrop-blur-xs text-white p-2.5 rounded-xl shadow-xl border border-slate-700/50 pointer-events-none transition-all duration-150 ease-out z-50 text-center"
+                                  style={{
+                                    left: `${(hoveredTrendPoint.x / w) * 100}%`,
+                                    top: `${(hoveredTrendPoint.y / h) * 100}%`,
+                                    transform: 'translate(-50%, -125%)',
+                                  }}
+                                >
+                                  {/* Tooltip arrow */}
+                                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900/95" />
+                                  <div className="text-[10px] font-mono font-bold text-sky-400 uppercase tracking-widest">
+                                    {hoveredTrendPoint.month}
+                                  </div>
+                                  <div className="text-sm font-bold mt-0.5">
+                                    {hoveredTrendPoint.value.toFixed(1)}%
+                                  </div>
+                                  <div className="text-[9px] text-slate-400 mt-0.5 leading-none">
+                                    Purata Pencapaian
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           );
                         })()}
@@ -1892,7 +1984,7 @@ export default function App() {
                           const barWidth = Math.min(32, spacing * 0.55);
 
                           return (
-                            <div className="w-full">
+                            <div className="w-full relative">
                               <svg viewBox={`0 0 ${w} ${h}`} width="100%" height="auto" className="mx-auto block overflow-visible max-h-[260px]">
                                 {/* Grid lines */}
                                 <line x1={ml} y1={mt} x2={ml + effW} y2={mt} stroke="#f1f5f9" />
@@ -1930,17 +2022,36 @@ export default function App() {
                                     pct >= 41 ? '#f59e0b' : // amber-500
                                     '#f43f5e';             // rose-500
 
+                                  const isHovered = hoveredBarKpi && hoveredBarKpi.id === kpi.id;
+                                  const hasAnotherHovered = hoveredBarKpi && hoveredBarKpi.id !== kpi.id;
+
                                   return (
-                                    <g key={kpi.id}>
-                                      {/* Bar Background for alignment */}
+                                    <g 
+                                      key={kpi.id}
+                                      className="transition-all duration-200 cursor-pointer"
+                                      onMouseEnter={() => setHoveredBarKpi({
+                                        id: kpi.id,
+                                        noKpi: kpi.noKpi,
+                                        kpiText: kpi.kpi,
+                                        pencapaian: ach.pencapaian,
+                                        target: kpi.sasaran3,
+                                        unit: kpi.pengukuran,
+                                        persen: ach.persenPencapaian,
+                                        pemberat: kpi.pemberat,
+                                        x: barX + barWidth / 2,
+                                        y: barY
+                                      })}
+                                      onMouseLeave={() => setHoveredBarKpi(null)}
+                                    >
+                                      {/* Bar Background for alignment & hover target */}
                                       <rect 
-                                        x={barX} 
+                                        x={barX - 4} 
                                         y={mt} 
-                                        width={barWidth} 
+                                        width={barWidth + 8} 
                                         height={effH} 
-                                        fill="#fbfafe" 
-                                        rx="4" 
-                                        className="opacity-50" 
+                                        fill={isHovered ? "rgba(14, 165, 233, 0.05)" : "#fbfafe"} 
+                                        rx="6" 
+                                        className="transition-all duration-200 opacity-50" 
                                       />
                                       {/* Bar */}
                                       <rect 
@@ -1950,7 +2061,9 @@ export default function App() {
                                         height={barH} 
                                         fill={barColor}
                                         rx="4" 
-                                        className="transition-all duration-500 ease-out hover:opacity-90 cursor-pointer" 
+                                        className={`transition-all duration-300 ease-out ${
+                                          isHovered ? 'filter brightness-105' : hasAnotherHovered ? 'opacity-40' : 'hover:opacity-90'
+                                        }`}
                                       />
                                       {/* Floating marker guideline for % Sasaran Akhir */}
                                       <line 
@@ -1961,7 +2074,7 @@ export default function App() {
                                         stroke="#f43f5e" 
                                         strokeWidth="1.5" 
                                         strokeDasharray="2.5 1.5"
-                                        className="opacity-80"
+                                        className={`transition-all duration-200 ${isHovered ? 'stroke-rose-500 opacity-100' : 'opacity-80'}`}
                                       />
                                       {/* Floating Badge representing the % Sasaran Akhir */}
                                       <rect
@@ -1988,9 +2101,9 @@ export default function App() {
                                         x={barX + barWidth / 2} 
                                         y={pct > 15 ? mt + effH - 6 : barY - 6} 
                                         textAnchor="middle" 
-                                        className={`text-[9px] font-bold font-mono ${
+                                        className={`text-[9px] font-bold font-mono transition-all duration-200 ${
                                           pct > 15 ? 'fill-white' : 'fill-slate-800'
-                                        }`}
+                                        } ${isHovered ? 'scale-110 font-black' : ''}`}
                                       >
                                         {ach.persenPencapaian.toFixed(0)}%
                                       </text>
@@ -1999,7 +2112,7 @@ export default function App() {
                                         x={barX + barWidth / 2} 
                                         y={mt + effH + 15} 
                                         textAnchor="middle" 
-                                        className="text-[9px] font-bold font-mono fill-[#004a8d]"
+                                        className={`text-[9px] font-bold font-mono transition-all duration-200 ${isHovered ? 'fill-sky-600 font-extrabold scale-105' : 'fill-[#004a8d]'}`}
                                       >
                                         {kpi.noKpi}
                                       </text>
@@ -2007,6 +2120,58 @@ export default function App() {
                                   );
                                 })}
                               </svg>
+
+                              {/* Beautiful Floating Interactive Tooltip */}
+                              {hoveredBarKpi && (
+                                <div 
+                                  className="absolute bg-slate-900/95 backdrop-blur-md text-white p-3.5 rounded-xl shadow-2xl border border-slate-700/50 pointer-events-none transition-all duration-150 ease-out z-50 text-left w-72"
+                                  style={{
+                                    left: `${(hoveredBarKpi.x / w) * 100}%`,
+                                    top: `${(hoveredBarKpi.y / h) * 100}%`,
+                                    transform: 'translate(-50%, -112%)',
+                                  }}
+                                >
+                                  {/* Tooltip arrow */}
+                                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900/95" />
+                                  
+                                  {/* Header */}
+                                  <div className="flex items-center justify-between border-b border-slate-800 pb-1.5 mb-1.5">
+                                    <span className="text-[10px] font-black text-sky-400 tracking-wider uppercase">
+                                      {hoveredBarKpi.noKpi}
+                                    </span>
+                                    <span className="text-[9px] font-bold text-slate-400 bg-slate-800 px-2 py-0.5 rounded-md">
+                                      Pemberat: {hoveredBarKpi.pemberat.toFixed(1)}%
+                                    </span>
+                                  </div>
+
+                                  {/* KPI Text Description */}
+                                  <div className="text-[10.5px] text-slate-200 font-medium leading-relaxed mb-2">
+                                    {hoveredBarKpi.kpiText}
+                                  </div>
+
+                                  {/* Progress / Values */}
+                                  <div className="space-y-1 pt-1.5 border-t border-slate-800">
+                                    <div className="flex justify-between text-[10px]">
+                                      <span className="text-slate-400">Pencapaian:</span>
+                                      <span className="font-bold text-emerald-400 font-mono">
+                                        {hoveredBarKpi.pencapaian.toLocaleString()} {hoveredBarKpi.unit}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between text-[10px]">
+                                      <span className="text-slate-400">Sasaran:</span>
+                                      <span className="font-bold text-slate-300 font-mono">
+                                        {hoveredBarKpi.target.toLocaleString()} {hoveredBarKpi.unit}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between text-[10px] pt-1 border-t border-slate-800/50">
+                                      <span className="text-slate-400">Peratus Pencapaian:</span>
+                                      <span className="font-extrabold text-sky-400 font-mono">
+                                        {hoveredBarKpi.persen.toFixed(1)}%
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           );
                         })()}
@@ -2023,8 +2188,8 @@ export default function App() {
                       <p className="text-xs text-slate-400 max-w-lg mx-auto mt-1">Ringkasan cepat pencapaian, komponen strategik dan label kata kunci bagi setiap Petunjuk untuk rujukan visual tersuai.</p>
                     </div>
 
-                    {/* Highly polished centered 2-column stacked layout */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl mx-auto w-full">
+                    {/* Highly polished centered responsive vertical card flexbox wrap layout */}
+                    <div className="flex flex-wrap gap-4 justify-center max-w-5xl mx-auto w-full">
                       {currentYearData.kpis.map((kpi, idx) => {
                         const ach = monthAchievementsGroup?.achievements[kpi.noKpi] || {
                           pencapaian: 0.0,
@@ -2041,47 +2206,42 @@ export default function App() {
                           ? words.join(' ') 
                           : words.slice(0, 3).join(' ') + '...';
 
-                        // Specific design background icons
-                        const performanceIcons = [
-                          <TrendingUp className="h-5 w-5 text-[#004a8d]" />,
-                          <Award className="h-5 w-5 text-emerald-600" />,
-                          <ClipboardList className="h-5 w-5 text-indigo-600" />,
-                          <Calendar className="h-5 w-5 text-amber-600" />,
-                        ];
-
                         const strokeColorClass = 
                           ach.persenPencapaian >= 90 ? 'text-emerald-500 stroke-emerald-500' :
                           ach.persenPencapaian >= 76 ? 'text-blue-500 stroke-blue-500' :
                           ach.persenPencapaian >= 41 ? 'text-amber-500 stroke-amber-500' :
-                          'text-rose-500 stroke-rose-500';
+                          'text-[#f92f60] stroke-rose-500';
+
+                        const borderGradeColor = 
+                          ach.persenPencapaian >= 90 ? '#10b981' :
+                          ach.persenPencapaian >= 76 ? '#3b82f6' :
+                          ach.persenPencapaian >= 41 ? '#f59e0b' :
+                          '#f92f60';
 
                         return (
                           <div 
                             key={kpi.id} 
-                            className="bg-white rounded-xl border border-slate-200/80 p-4 shadow-xs hover:border-[#004a8d]/30 hover:shadow-sm transition-all duration-200 flex items-center justify-between group"
+                            onClick={() => setSelectedKpiForModal(kpi)}
+                            style={{ height: '150px', width: '140px', borderColor: borderGradeColor }}
+                            className="bg-white rounded-[32px] border p-4 shadow-[0_8px_30px_rgb(0,0,0,0.015)] hover:shadow-[0_12px_40px_rgb(0,0,0,0.04)] hover:scale-[1.03] transition-all duration-300 flex flex-col items-center justify-between text-center group cursor-pointer"
                           >
-                            <div className="flex items-center space-x-3.5 min-w-0">
-                              <div className="p-3 bg-slate-50/85 rounded-xl border border-slate-100/70 flex-shrink-0 group-hover:bg-[#004a8d]/5 transition-colors">
-                                {performanceIcons[idx % performanceIcons.length]}
-                              </div>
-                              <div className="min-w-0">
-                                <div className="flex items-center space-x-2">
-                                  <span className="text-[10px] uppercase font-mono font-bold text-slate-400">{kpi.noKpi}</span>
-                                  <span className="w-1 h-1 bg-slate-300 rounded-full"></span>
-                                  <span className="text-[9px] uppercase font-semibold text-slate-400 font-mono tracking-tighter truncate max-w-[100px]">{kpi.komponen}</span>
-                                </div>
-                                <span className="text-xs font-bold text-slate-800 block truncate mt-0.5" title={kpi.kpi}>
-                                  {keyWord}
-                                </span>
-                                <span className="text-[10px] text-slate-400 block max-w-[200px] truncate leading-tight mt-0.5">
-                                  {kpi.kpi}
-                                </span>
-                              </div>
+                            {/* KPI No */}
+                            <div className="pt-1">
+                              <span style={{ fontSize: '14px' }} className="uppercase font-mono font-bold text-slate-400 tracking-widest">
+                                {kpi.noKpi}
+                              </span>
                             </div>
 
-                            <div className="text-right flex-shrink-0 pl-3 border-l border-slate-100 pr-1 ml-2">
-                              <span className="text-[9px] uppercase font-mono text-slate-400 block tracking-wide">Pencapaian</span>
-                              <span className={`text-base font-black font-mono tracking-tight block ${strokeColorClass}`}>
+                            {/* KPI Name/Keyword */}
+                            <div className="flex-1 flex items-center justify-center py-1">
+                              <span style={{ fontSize: '12px', textAlign: 'center' }} className="font-extrabold text-[#0f2e5c] block leading-tight px-1 group-hover:text-[#004a8d] transition-colors" title={kpi.kpi}>
+                                {keyWord}
+                              </span>
+                            </div>
+
+                            {/* KPI Percentage */}
+                            <div className="pb-1">
+                              <span style={{ fontSize: '18px' }} className={`font-black font-mono tracking-tight block ${strokeColorClass}`}>
                                 {ach.persenPencapaian.toFixed(1)}%
                               </span>
                             </div>
@@ -2789,7 +2949,7 @@ export default function App() {
                             
                             {/* Sasaran 1 & justifikasi */}
                             <td className="p-4 text-center relative group">
-                              <span className="font-mono font-bold text-slate-800 block text-xs">{kpi.sasaran1.toFixed(1)}</span>
+                              <span className="font-mono font-bold text-slate-800 block text-[14px]">{kpi.sasaran1.toFixed(1)}</span>
                               <span className="text-[9px] text-slate-400 block max-w-[80px] mx-auto truncate font-medium cursor-help hover:text-slate-650 transition-colors" title={kpi.justifikasiSasaran1}>{kpi.justifikasiSasaran1}</span>
                               {kpi.justifikasiSasaran1 && (
                                 <div className="pointer-events-none absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-48 bg-slate-900/95 backdrop-blur-xs text-white text-[10px] p-2 rounded-xl shadow-xl z-50 text-center leading-relaxed font-sans font-normal border border-slate-700/50 opacity-0 group-hover:opacity-100 transition-opacity duration-250 block before:content-[''] before:absolute before:top-full before:left-1/2 before:-translate-x-1/2 before:border-4 before:border-transparent before:border-t-slate-900">
@@ -2800,7 +2960,7 @@ export default function App() {
 
                             {/* Sasaran 2 & justifikasi */}
                             <td className="p-4 text-center relative group">
-                              <span className="font-mono font-bold text-slate-800 block text-xs">{kpi.sasaran2.toFixed(1)}</span>
+                              <span className="font-mono font-bold text-slate-800 block text-[14px]">{kpi.sasaran2.toFixed(1)}</span>
                               <span className="text-[9px] text-slate-400 block max-w-[80px] mx-auto truncate font-medium cursor-help hover:text-slate-650 transition-colors" title={kpi.justifikasiSasaran2}>{kpi.justifikasiSasaran2}</span>
                               {kpi.justifikasiSasaran2 && (
                                 <div className="pointer-events-none absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-48 bg-slate-900/95 backdrop-blur-xs text-white text-[10px] p-2 rounded-xl shadow-xl z-50 text-center leading-relaxed font-sans font-normal border border-slate-700/50 opacity-0 group-hover:opacity-100 transition-opacity duration-250 block before:content-[''] before:absolute before:top-full before:left-1/2 before:-translate-x-1/2 before:border-4 before:border-transparent before:border-t-slate-900">
@@ -2811,7 +2971,7 @@ export default function App() {
 
                             {/* Sasaran 3 & justifikasi */}
                             <td className="p-4 text-center bg-sky-50/50 relative group">
-                              <span className="font-mono font-bold text-sky-900 block text-xs">{kpi.sasaran3.toFixed(1)}</span>
+                              <span className="font-mono font-bold text-sky-900 block text-[14px]">{kpi.sasaran3.toFixed(1)}</span>
                               <span className="text-[9px] text-sky-800/80 block max-w-[80px] mx-auto truncate font-semibold cursor-help hover:text-sky-900 transition-colors" title={kpi.justifikasiSasaran3}>{kpi.justifikasiSasaran3}</span>
                               {kpi.justifikasiSasaran3 && (
                                 <div className="pointer-events-none absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-48 bg-slate-900/95 backdrop-blur-xs text-white text-[10px] p-2 rounded-xl shadow-xl z-50 text-center leading-relaxed font-sans font-normal border border-slate-700/50 opacity-0 group-hover:opacity-100 transition-opacity duration-250 block before:content-[''] before:absolute before:top-full before:left-1/2 before:-translate-x-1/2 before:border-4 before:border-transparent before:border-t-slate-900">
@@ -2822,7 +2982,7 @@ export default function App() {
 
                             {/* Sasaran 4 & justifikasi */}
                             <td className="p-4 text-center relative group">
-                              <span className="font-mono font-bold text-slate-800 block text-xs">{kpi.sasaran4.toFixed(1)}</span>
+                              <span className="font-mono font-bold text-slate-800 block text-[14px]">{kpi.sasaran4.toFixed(1)}</span>
                               <span className="text-[9px] text-slate-400 block max-w-[80px] mx-auto truncate font-medium cursor-help hover:text-slate-650 transition-colors" title={kpi.justifikasiSasaran4}>{kpi.justifikasiSasaran4}</span>
                               {kpi.justifikasiSasaran4 && (
                                 <div className="pointer-events-none absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-48 bg-slate-900/95 backdrop-blur-xs text-white text-[10px] p-2 rounded-xl shadow-xl z-50 text-center leading-relaxed font-sans font-normal border border-slate-700/50 opacity-0 group-hover:opacity-100 transition-opacity duration-250 block before:content-[''] before:absolute before:top-full before:left-1/2 before:-translate-x-1/2 before:border-4 before:border-transparent before:border-t-slate-900">
@@ -2832,12 +2992,12 @@ export default function App() {
                             </td>
 
                             {/* Final sasaran */}
-                            <td className="p-4 text-center font-bold font-mono text-slate-800">
+                            <td className="p-4 text-center font-bold font-mono text-[14px] text-slate-800">
                               {kpi.sasaranAkhir.toFixed(1)}%
                             </td>
 
                             {/* Pemberat */}
-                            <td className="p-4 text-center font-extrabold font-mono text-slate-900 bg-slate-50/35">
+                            <td className="p-4 text-center font-extrabold font-mono text-[14px] text-slate-900 bg-slate-50/35">
                               {kpi.pemberat.toFixed(1)}%
                             </td>
 
@@ -2880,7 +3040,7 @@ export default function App() {
                           <td colSpan={4}></td>
                           <td className="p-4 text-center text-slate-800 font-mono text-xs">
                             <span className="block text-[8px] text-slate-400 font-mono uppercase font-normal leading-none mb-1">Purata Sasaran</span>
-                            <b>{purataSasaranAkhir.toFixed(1)}%</b>
+                            <b className="text-[14px]">{purataSasaranAkhir.toFixed(1)}%</b>
                           </td>
                           <td 
                             className={`p-4 text-center font-mono ${
@@ -3133,12 +3293,24 @@ export default function App() {
                         <p className="text-xs text-slate-400">Gunakan butang <b>EDIT</b> di lajur hujung untuk mula mengisi dan mengemukakan dokumen rujukan.</p>
                       </div>
 
-                      <div className="flex items-center space-x-2 text-xs font-semibold text-slate-500">
-                        <span>% Pencapaian Keseluruhan:</span>
-                        <span className="bg-emerald-50 text-emerald-800 border border-emerald-100 px-3.5 py-1.5 rounded-xl font-black font-mono text-[22px] shadow-sm leading-none">
-                          {totalWeightedProgress.toFixed(1)}%
-                        </span>
-                      </div>
+                      {(() => {
+                        const styles = totalWeightedProgress >= 91.0
+                          ? { bg: 'bg-[#e2f0d9]/70', text: 'text-[#385723]', border: 'border-[#c5e0b4]' }
+                          : totalWeightedProgress >= 71.0
+                          ? { bg: 'bg-[#e0ebf9]/70', text: 'text-[#004a8d]', border: 'border-[#adcbf2]' }
+                          : totalWeightedProgress >= 21.0
+                          ? { bg: 'bg-[#fef3c7]/70', text: 'text-[#b45309]', border: 'border-[#fde68a]' }
+                          : { bg: 'bg-[#ffe4e6]/70', text: 'text-[#be123c]', border: 'border-[#fecdd3]' };
+
+                        return (
+                          <div className="flex items-center space-x-2 text-xs font-semibold text-slate-500">
+                            <span>% Pencapaian Keseluruhan:</span>
+                            <span className={`${styles.bg} ${styles.text} border ${styles.border} px-3.5 py-1.5 rounded-xl font-black font-mono text-[22px] shadow-sm leading-none transition-all duration-300`}>
+                              {totalWeightedProgress.toFixed(1)}%
+                            </span>
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     {/* Achievement Item Rows */}
@@ -3591,6 +3763,352 @@ export default function App() {
                     Teruskan / Unlock
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* KPI Interactive Details Popout Modal */}
+        {selectedKpiForModal && (
+          <div 
+            style={{ zIndex: 99990 }}
+            className="fixed inset-0 flex items-center justify-center p-4 bg-slate-900/65 backdrop-blur-sm transition-opacity duration-300"
+          >
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-3xl w-full flex flex-col overflow-hidden relative animate-in fade-in zoom-in-95 duration-200">
+              {/* Header Banner */}
+              <div className="bg-[#0f2e5c] px-6 py-4 flex items-center justify-between shadow-md">
+                <div className="flex items-center min-w-0 mr-4">
+                  <span className="bg-sky-500 text-white font-mono font-black text-xs px-2.5 py-1 rounded-lg uppercase tracking-wide mr-3 shrink-0">
+                    {selectedKpiForModal.noKpi}
+                  </span>
+                  <h3 className="text-white text-xs sm:text-sm font-bold uppercase tracking-wide truncate" title={selectedKpiForModal.kpi}>
+                    {selectedKpiForModal.kpi}
+                  </h3>
+                </div>
+                <button 
+                  onClick={() => {
+                    setSelectedKpiForModal(null);
+                    setHoveredModalTrendPoint(null);
+                  }}
+                  className="bg-white/10 hover:bg-white/20 text-white font-semibold text-xs px-3.5 py-1.5 rounded-lg transition-colors cursor-pointer shrink-0"
+                >
+                  Tutup
+                </button>
+              </div>
+
+              {/* Scrollable content container */}
+              <div className="p-6 bg-slate-50 space-y-5 overflow-y-auto max-h-[72vh]">
+                
+                {/* Row 1: Objective & Initiatives */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-white border border-slate-200/60 rounded-xl p-4.5 shadow-2xs">
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5 font-sans">
+                      OBJEKTIF STRATEGIKAL
+                    </span>
+                    <p className="text-xs sm:text-sm font-bold text-slate-800 leading-relaxed">
+                      {selectedKpiForModal.objektif || 'Tiada maklumat objektif strategikal'}
+                    </p>
+                  </div>
+
+                  <div className="bg-white border border-slate-200/60 rounded-xl p-4.5 shadow-2xs">
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5 font-sans">
+                      INISIATIF UTAMA
+                    </span>
+                    <p className="text-xs sm:text-sm font-medium text-slate-600 leading-relaxed">
+                      {selectedKpiForModal.inisiatif || 'Tiada maklumat inisiatif utama'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Row 2: Measurement */}
+                <div className="bg-white border border-slate-200/60 rounded-xl p-4.5 shadow-2xs">
+                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5 font-sans">
+                    KAEDAH PENGUKURAN
+                  </span>
+                  <p className="text-xs sm:text-sm font-semibold text-slate-600 leading-relaxed">
+                    {selectedKpiForModal.pengukuran || 'Tiada kaedah pengukuran khusus'}
+                  </p>
+                </div>
+
+                {/* Row 3: Current Month Achievement Card (Matches green style) */}
+                {(() => {
+                  const ach = currentYearData.monthlyAchievements[selectedMonth]?.achievements[selectedKpiForModal.noKpi] || {
+                    pencapaian: 0.0,
+                    persenPencapaian: 0.0,
+                    persenPemberat: selectedKpiForModal.pemberat,
+                    persenPencapaianSebenar: 0.0,
+                    statusPencapaian: 'Belum Dilaksanakan'
+                  };
+
+                  const translateMonthToMalay = (monthStr: string): string => {
+                    const mapping: Record<string, string> = {
+                      JANUARY: 'JAN',
+                      FEBRUARY: 'FEB',
+                      MARCH: 'MAC',
+                      APRIL: 'APR',
+                      MAY: 'MEI',
+                      JUNE: 'JUN',
+                      JULY: 'JUL',
+                      AUGUST: 'OGOS',
+                      SEPTEMBER: 'SEPT',
+                      OCTOBER: 'OKT',
+                      NOVEMBER: 'NOV',
+                      DECEMBER: 'DIS'
+                    };
+                    return mapping[monthStr] || monthStr;
+                  };
+
+                  return (
+                    <div className="bg-[#e2f0d9] border border-[#c5e0b4] rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between shadow-xs gap-4">
+                      <div>
+                        <span className="text-[10px] font-black text-[#385723] uppercase tracking-widest block mb-1.5 font-sans">
+                          PENCAPAIAN BULAN {translateMonthToMalay(selectedMonth)}
+                        </span>
+                        <div className="text-4xl font-black text-[#385723] tracking-tight font-mono">
+                          {ach.persenPencapaian.toFixed(1)}%
+                        </div>
+                      </div>
+
+                      <div className="text-left sm:text-right font-mono text-xs text-slate-700 space-y-1 pr-2">
+                        <div>Sasaran: <span className="font-bold text-slate-900">{selectedKpiForModal.sasaran3.toLocaleString()}</span></div>
+                        <div>Pencapaian: <span className="font-bold text-slate-900">{ach.pencapaian.toLocaleString()}</span></div>
+                        <div className="text-[#385723] font-semibold">
+                          Wajaran: <span className="font-extrabold">{ach.persenPencapaianSebenar.toFixed(2)}% / {selectedKpiForModal.pemberat.toFixed(0)}%</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Row 4: YTD 12-Month Performance Trend Chart */}
+                <div className="bg-white border border-slate-200/60 rounded-xl p-5 shadow-2xs">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-4 font-sans">
+                    TREND PENCAPAIAN 12 BULAN (YTD {selectedYear})
+                  </span>
+
+                  {(() => {
+                    // Extract 12 months data
+                    const modalTrendData = MONTHS_LIST.map((m) => {
+                      const group = currentYearData.monthlyAchievements[m];
+                      const ach = group?.achievements[selectedKpiForModal.noKpi];
+                      return {
+                        month: m,
+                        value: ach ? ach.persenPencapaian : 0.0
+                      };
+                    });
+
+                    const w = 750;
+                    const h = 200;
+                    const ml = 45;
+                    const mr = 20;
+                    const mt = 20;
+                    const mb = 35;
+
+                    const effW = w - ml - mr;
+                    const effH = h - mt - mb;
+
+                    const getX = (idx: number) => ml + (idx * effW) / 11;
+                    const getY = (val: number) => mt + effH - Math.min(effH, Math.max(0, (val / 100) * effH));
+
+                    const points = modalTrendData.map((d, i) => ({ x: getX(i), y: getY(d.value), month: d.month, value: d.value }));
+
+                    const getSweepingPath = (pts: { x: number; y: number }[]) => {
+                      if (pts.length === 0) return '';
+                      let d = `M ${pts[0].x} ${pts[0].y}`;
+                      for (let i = 0; i < pts.length - 1; i++) {
+                        const p0 = pts[i];
+                        const p1 = pts[i + 1];
+                        const cp1x = p0.x + (p1.x - p0.x) / 3;
+                        const cp1y = p0.y;
+                        const cp2x = p0.x + 2 * (p1.x - p0.x) / 3;
+                        const cp2y = p1.y;
+                        d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p1.x} ${p1.y}`;
+                      }
+                      return d;
+                    };
+
+                    const pathD = getSweepingPath(points);
+                    const areaD = points.length > 0 ? `${pathD} L ${points[points.length - 1].x} ${getY(0)} L ${points[0].x} ${getY(0)} Z` : '';
+
+                    const translateMonthToMalayShort = (monthStr: string): string => {
+                      const mapping: Record<string, string> = {
+                        JANUARY: 'JAN',
+                        FEBRUARY: 'FEB',
+                        MARCH: 'MAC',
+                        APRIL: 'APR',
+                        MAY: 'MEI',
+                        JUNE: 'JUN',
+                        JULY: 'JUL',
+                        AUGUST: 'OGOS',
+                        SEPTEMBER: 'SEPT',
+                        OCTOBER: 'OKT',
+                        NOVEMBER: 'NOV',
+                        DECEMBER: 'DIS'
+                      };
+                      return mapping[monthStr] || monthStr;
+                    };
+
+                    return (
+                      <div className="w-full relative">
+                        <svg 
+                          viewBox={`0 0 ${w} ${h}`} 
+                          width="100%" 
+                          height="auto" 
+                          className="mx-auto block overflow-visible max-h-[260px]"
+                        >
+                          {/* Gradients */}
+                          <defs>
+                            <linearGradient id="modalTrendAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="#004a8d" stopOpacity="0.16" />
+                              <stop offset="100%" stopColor="#004a8d" stopOpacity="0.00" />
+                            </linearGradient>
+                          </defs>
+
+                          {/* Grid Lines */}
+                          {[0, 50, 75, 100].map((level) => {
+                            const yPos = getY(level);
+                            return (
+                              <g key={level}>
+                                <line 
+                                  x1={ml} 
+                                  y1={yPos} 
+                                  x2={w - mr} 
+                                  y2={yPos} 
+                                  stroke="#e2e8f0" 
+                                  strokeWidth="1" 
+                                  strokeDasharray="4,4" 
+                                />
+                                <text 
+                                  x={ml - 10} 
+                                  y={yPos + 4} 
+                                  textAnchor="end" 
+                                  className="fill-slate-400 font-mono text-[10px] font-medium"
+                                >
+                                  {level}
+                                </text>
+                              </g>
+                            );
+                          })}
+
+                          {/* Dynamic shading area under the curve */}
+                          {areaD && (
+                            <path d={areaD} fill="url(#modalTrendAreaGrad)" />
+                          )}
+
+                          {/* Connection Curve Line */}
+                          {pathD && (
+                            <path 
+                              d={pathD} 
+                              fill="none" 
+                              stroke="#004a8d" 
+                              strokeWidth="2.5" 
+                              strokeLinecap="round" 
+                            />
+                          )}
+
+                          {/* Interactive invisible tracking lines & circles */}
+                          {points.map((pt, idx) => {
+                            const isHovered = hoveredModalTrendPoint?.month === pt.month;
+                            return (
+                              <g key={idx} className="cursor-pointer">
+                                {/* Hover interactive line */}
+                                {isHovered && (
+                                  <line 
+                                    x1={pt.x} 
+                                    y1={mt} 
+                                    x2={pt.x} 
+                                    y2={getY(0)} 
+                                    stroke="#004a8d" 
+                                    strokeWidth="1" 
+                                    strokeDasharray="2,2" 
+                                  />
+                                )}
+
+                                {/* Outer glow on hover */}
+                                <circle 
+                                  cx={pt.x} 
+                                  cy={pt.y} 
+                                  r={isHovered ? 8 : 4} 
+                                  fill={isHovered ? '#004a8d' : '#ffffff'} 
+                                  fillOpacity={isHovered ? 0.2 : 1.0}
+                                  stroke="#004a8d" 
+                                  strokeWidth={isHovered ? 2 : 2}
+                                />
+                                {isHovered && (
+                                  <circle 
+                                    cx={pt.x} 
+                                    cy={pt.y} 
+                                    r="4" 
+                                    fill="#004a8d" 
+                                  />
+                                )}
+
+                                {/* Month Label under X-axis */}
+                                <text 
+                                  x={pt.x} 
+                                  y={h - 10} 
+                                  textAnchor="middle" 
+                                  className={`font-mono text-[9px] font-bold ${isHovered ? 'fill-slate-800' : 'fill-slate-400'}`}
+                                >
+                                  {translateMonthToMalayShort(pt.month)}
+                                </text>
+
+                                {/* Mouse hover area target */}
+                                <rect 
+                                  x={pt.x - effW / 24} 
+                                  y={mt} 
+                                  width={effW / 12} 
+                                  height={effH} 
+                                  fill="transparent" 
+                                  onMouseEnter={(e) => {
+                                    setHoveredModalTrendPoint({
+                                      month: pt.month as MonthType,
+                                      value: pt.value,
+                                      x: pt.x,
+                                      y: pt.y
+                                    });
+                                  }}
+                                />
+                              </g>
+                            );
+                          })}
+                        </svg>
+
+                        {/* Interactive Tooltip matching the image precisely */}
+                        {hoveredModalTrendPoint && (
+                          <div 
+                            style={{
+                              left: `${(hoveredModalTrendPoint.x / w) * 100}%`,
+                              top: `${(hoveredModalTrendPoint.y / h) * 100 - 24}%`,
+                              transform: 'translate(-50%, -100%)'
+                            }}
+                            className="absolute bg-white border border-slate-200/80 shadow-lg rounded-lg p-2.5 z-50 text-left pointer-events-none w-32 animate-in fade-in zoom-in-95 duration-100"
+                          >
+                            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide font-sans mb-0.5">
+                              {translateMonthToMalayShort(hoveredModalTrendPoint.month)}
+                            </div>
+                            <div className="text-xs font-black text-[#004a8d] font-mono">
+                              Pencapaian: {hoveredModalTrendPoint.value.toFixed(1)}%
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              {/* Footer action */}
+              <div className="bg-slate-50 border-t border-slate-100 px-6 py-4 flex justify-end">
+                <button 
+                  onClick={() => {
+                    setSelectedKpiForModal(null);
+                    setHoveredModalTrendPoint(null);
+                  }}
+                  className="bg-[#0f2e5c] hover:bg-[#071d3d] text-white font-bold text-xs px-6 py-2.5 rounded-xl shadow-md hover:shadow-lg transition-all active:scale-98 cursor-pointer font-sans uppercase tracking-wider"
+                >
+                  Tutup Paparan
+                </button>
               </div>
             </div>
           </div>
