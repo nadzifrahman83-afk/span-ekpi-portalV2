@@ -2234,7 +2234,7 @@ export default function App() {
 
                             {/* KPI Name/Keyword */}
                             <div className="flex-1 flex items-center justify-center py-1">
-                              <span style={{ fontSize: '12px', textAlign: 'center' }} className="font-extrabold text-[#0f2e5c] block leading-tight px-1 group-hover:text-[#004a8d] transition-colors" title={kpi.kpi}>
+                              <span style={{ fontSize: '10px', textAlign: 'center' }} className="font-extrabold text-[#0f2e5c] block leading-tight px-1 group-hover:text-[#004a8d] transition-colors" title={kpi.kpi}>
                                 {keyWord}
                               </span>
                             </div>
