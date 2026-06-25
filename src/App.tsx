@@ -18,6 +18,7 @@ import {
   Check,
   Edit2,
   Lock,
+  Unlock,
   Search,
   BookOpen,
   Building2,
@@ -104,6 +105,8 @@ export default function App() {
 
   // Kerangka ADD KPI form state
   const [isAddKpiOpen, setIsAddKpiOpen] = useState(false);
+  const [editingKpiId, setEditingKpiId] = useState<string | null>(null);
+  const [isUnlockModalOpen, setIsUnlockModalOpen] = useState(false);
 
   // Search filter for Dashboard/Kerangka
   const [searchQuery, setSearchQuery] = useState('');
@@ -316,58 +319,115 @@ export default function App() {
       return;
     }
 
-    // Auto-number creation
-    const nextKpiNum = currentYearData.kpis.length + 1;
-    const noKpiStr = `KPI ${nextKpiNum}`;
-
-    const newKpiItem: KpiItem = {
-      id: `kpi-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      noKpi: noKpiStr,
-      komponen: formKomponen,
-      noSsp: formTerasSsp,
-      bidangUtama: formBidangUtama,
-      bahagian: formBahagianList,
-      
-      // Capitalize each word / Uppercase compliance
-      objektif: handleCapitalizeEachWord(formObjektif),
-      kpi: handleUppercase(formKpiText),
-      inisiatif: handleCapitalizeEachWord(formInisiatif),
-      pengukuran: handleCapitalizeEachWord(formPengukuran),
-      statusPencapaianTahunSebelum: handleCapitalizeEachWord(formStatusSebelum),
-      
-      sasaran1: Number(Number(formSasaran1).toFixed(1)),
-      justifikasiSasaran1: handleCapitalizeEachWord(formJustifikasi1),
-      sasaran2: Number(Number(formSasaran2).toFixed(1)),
-      justifikasiSasaran2: handleCapitalizeEachWord(formJustifikasi2),
-      sasaran3: Number(Number(formSasaran3).toFixed(1)),
-      justifikasiSasaran3: handleCapitalizeEachWord(formJustifikasi3),
-      sasaran4: Number(Number(formSasaran4).toFixed(1)),
-      justifikasiSasaran4: handleCapitalizeEachWord(formJustifikasi4),
-      
-      sasaranAkhir: Number(Number(formSasaranAkhir).toFixed(1)),
-      pemberat: Number(Number(formPemberat).toFixed(1))
-    };
-
-    // Update Year Object
-    const updatedKpis = [...currentYearData.kpis, newKpiItem];
-
-    // Auto update monthly references to include this new KPI
+    let updatedKpis: KpiItem[];
+    let noKpiStr = '';
     const updatedMonthlyAchievements = { ...currentYearData.monthlyAchievements };
-    MONTHS_LIST.forEach(m => {
-      const monthGrp = updatedMonthlyAchievements[m] || { month: m, isEdited: false, achievements: {} };
-      
-      const s3 = newKpiItem.sasaran3 || 1;
-      monthGrp.achievements[newKpiItem.noKpi] = {
-        noKpi: newKpiItem.noKpi,
-        pencapaian: 0.0,
-        persenPencapaian: 0.0,
-        persenPemberat: newKpiItem.pemberat,
-        persenPencapaianSebenar: 0.0,
-        statusPencapaian: 'Belum Dilaksanakan',
-        dokumenSokongan: null
+
+    if (editingKpiId) {
+      const existingKpi = currentYearData.kpis.find(k => k.id === editingKpiId);
+      if (!existingKpi) {
+        showToast('KPI tidak ditemui', 'error');
+        return;
+      }
+      noKpiStr = existingKpi.noKpi;
+
+      const updatedKpiItem: KpiItem = {
+        ...existingKpi,
+        komponen: formKomponen,
+        noSsp: formTerasSsp,
+        bidangUtama: formBidangUtama,
+        bahagian: formBahagianList,
+        
+        // Capitalize each word / Uppercase compliance
+        objektif: handleCapitalizeEachWord(formObjektif),
+        kpi: handleUppercase(formKpiText),
+        inisiatif: handleCapitalizeEachWord(formInisiatif),
+        pengukuran: handleCapitalizeEachWord(formPengukuran),
+        statusPencapaianTahunSebelum: handleCapitalizeEachWord(formStatusSebelum),
+        
+        sasaran1: Number(Number(formSasaran1).toFixed(1)),
+        justifikasiSasaran1: handleCapitalizeEachWord(formJustifikasi1),
+        sasaran2: Number(Number(formSasaran2).toFixed(1)),
+        justifikasiSasaran2: handleCapitalizeEachWord(formJustifikasi2),
+        sasaran3: Number(Number(formSasaran3).toFixed(1)),
+        justifikasiSasaran3: handleCapitalizeEachWord(formJustifikasi3),
+        sasaran4: Number(Number(formSasaran4).toFixed(1)),
+        justifikasiSasaran4: handleCapitalizeEachWord(formJustifikasi4),
+        
+        sasaranAkhir: Number(Number(formSasaranAkhir).toFixed(1)),
+        pemberat: Number(Number(formPemberat).toFixed(1))
       };
-      updatedMonthlyAchievements[m] = monthGrp;
-    });
+
+      updatedKpis = currentYearData.kpis.map(k => k.id === editingKpiId ? updatedKpiItem : k);
+
+      // Update monthly achievements with the modified weights and recalculate percentages
+      MONTHS_LIST.forEach(m => {
+        const monthGrp = updatedMonthlyAchievements[m];
+        if (monthGrp && monthGrp.achievements[noKpiStr]) {
+          const ach = monthGrp.achievements[noKpiStr];
+          const val = Number(Number(ach.pencapaian).toFixed(1));
+          const s3 = updatedKpiItem.sasaran3 || 1;
+          const rawPersenPencapaian = s3 > 0 ? Number(((val / s3) * 100).toFixed(1)) : 100.0;
+          const persenPencapaian = Math.min(100.0, rawPersenPencapaian);
+          const persenPemberat = updatedKpiItem.pemberat;
+          const persenPencapaianSebenar = Number(((persenPencapaian * persenPemberat) / 100).toFixed(1));
+
+          ach.persenPencapaian = persenPencapaian;
+          ach.persenPemberat = persenPemberat;
+          ach.persenPencapaianSebenar = persenPencapaianSebenar;
+        }
+      });
+    } else {
+      // Auto-number creation
+      const nextKpiNum = currentYearData.kpis.length + 1;
+      noKpiStr = `KPI ${nextKpiNum}`;
+
+      const newKpiItem: KpiItem = {
+        id: `kpi-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        noKpi: noKpiStr,
+        komponen: formKomponen,
+        noSsp: formTerasSsp,
+        bidangUtama: formBidangUtama,
+        bahagian: formBahagianList,
+        
+        // Capitalize each word / Uppercase compliance
+        objektif: handleCapitalizeEachWord(formObjektif),
+        kpi: handleUppercase(formKpiText),
+        inisiatif: handleCapitalizeEachWord(formInisiatif),
+        pengukuran: handleCapitalizeEachWord(formPengukuran),
+        statusPencapaianTahunSebelum: handleCapitalizeEachWord(formStatusSebelum),
+        
+        sasaran1: Number(Number(formSasaran1).toFixed(1)),
+        justifikasiSasaran1: handleCapitalizeEachWord(formJustifikasi1),
+        sasaran2: Number(Number(formSasaran2).toFixed(1)),
+        justifikasiSasaran2: handleCapitalizeEachWord(formJustifikasi2),
+        sasaran3: Number(Number(formSasaran3).toFixed(1)),
+        justifikasiSasaran3: handleCapitalizeEachWord(formJustifikasi3),
+        sasaran4: Number(Number(formSasaran4).toFixed(1)),
+        justifikasiSasaran4: handleCapitalizeEachWord(formJustifikasi4),
+        
+        sasaranAkhir: Number(Number(formSasaranAkhir).toFixed(1)),
+        pemberat: Number(Number(formPemberat).toFixed(1))
+      };
+
+      updatedKpis = [...currentYearData.kpis, newKpiItem];
+
+      // Auto update monthly references to include this new KPI
+      MONTHS_LIST.forEach(m => {
+        const monthGrp = updatedMonthlyAchievements[m] || { month: m, isEdited: false, achievements: {} };
+        
+        monthGrp.achievements[newKpiItem.noKpi] = {
+          noKpi: newKpiItem.noKpi,
+          pencapaian: 0.0,
+          persenPencapaian: 0.0,
+          persenPemberat: newKpiItem.pemberat,
+          persenPencapaianSebenar: 0.0,
+          statusPencapaian: 'Belum Dilaksanakan',
+          dokumenSokongan: null
+        };
+        updatedMonthlyAchievements[m] = monthGrp;
+      });
+    }
 
     const updatedYearData: kpiYearData = {
       ...currentYearData,
@@ -406,7 +466,51 @@ export default function App() {
     setFormBahagianList([]);
 
     setIsAddKpiOpen(false);
-    showToast(`Berjaya menambah ${noKpiStr} ke dalam Kerangka KPI ${selectedYear}`, 'success');
+    const successMsg = editingKpiId 
+      ? `Berjaya mengemaskini ${noKpiStr} dalam Kerangka KPI ${selectedYear}`
+      : `Berjaya menambah ${noKpiStr} ke dalam Kerangka KPI ${selectedYear}`;
+    setEditingKpiId(null);
+    showToast(successMsg, 'success');
+  };
+
+  // Start editing a KPI by loading its values into the form
+  const handleStartEditKpi = (kpiItem: KpiItem) => {
+    if (currentYearData.isSubmitted) {
+      showToast('Kerangka tahun ini telah DISAHKAN dan DIKUNCI. Anda tidak boleh meminda KPI.', 'error');
+      return;
+    }
+
+    setFormKomponen(kpiItem.komponen);
+    setFormTerasSsp(kpiItem.noSsp);
+    setFormBidangUtama(kpiItem.bidangUtama);
+    setFormBahagianList(kpiItem.bahagian);
+    setFormObjektif(kpiItem.objektif);
+    setFormKpiText(kpiItem.kpi);
+    setFormInisiatif(kpiItem.inisiatif || '');
+    setFormPengukuran(kpiItem.pengukuran || '');
+    setFormStatusSebelum(kpiItem.statusPencapaianTahunSebelum || '');
+    
+    setFormSasaran1(kpiItem.sasaran1);
+    setFormJustifikasi1(kpiItem.justifikasiSasaran1 || '');
+    setFormSasaran2(kpiItem.sasaran2);
+    setFormJustifikasi2(kpiItem.justifikasiSasaran2 || '');
+    setFormSasaran3(kpiItem.sasaran3);
+    setFormJustifikasi3(kpiItem.justifikasiSasaran3 || '');
+    setFormSasaran4(kpiItem.sasaran4);
+    setFormJustifikasi4(kpiItem.justifikasiSasaran4 || '');
+    
+    setFormSasaranAkhir(kpiItem.sasaranAkhir);
+    setFormPemberat(kpiItem.pemberat);
+
+    setEditingKpiId(kpiItem.id);
+    setIsAddKpiOpen(true);
+
+    setTimeout(() => {
+      const el = document.getElementById('kpi_form_panel');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 100);
   };
 
   // Remove a KPI before submitting
@@ -515,6 +619,28 @@ export default function App() {
     showToast(`Tahniah! Kerangka Strategik KPI Tahun ${selectedYear} telah rasmi DISUBMIT & DIKUNCI untuk pengisian bulanan.`, 'success');
   };
 
+  // Handle unlocking the Kerangka Year
+  const handleUnlockKerangka = async () => {
+    const updatedYearData: kpiYearData = {
+      ...currentYearData,
+      isSubmitted: false
+    };
+
+    setYearRecords(prev => ({
+      ...prev,
+      [selectedYear]: updatedYearData
+    }));
+
+    try {
+      await setDoc(doc(db, 'yearRecords', String(selectedYear)), updatedYearData);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `yearRecords/${selectedYear}`);
+    }
+
+    setIsUnlockModalOpen(false);
+    showToast(`Kerangka Strategik KPI Tahun ${selectedYear} telah berjaya dibuka kunci. Anda boleh meminda KPI semula.`, 'success');
+  };
+
   // Restore Default Demo Data
   const handleResetToDemo = async () => {
     if (confirm('Tetapkan semula sistem ke Tetapan asal SPAN (Data Penunjuk 2026)? Segala perubahan semasa anda akan digantikan.')) {
@@ -589,8 +715,9 @@ export default function App() {
     const s3 = kpiRef.sasaran3 || 1;
 
     // Calculate auto variables
-    // % PENCAPAIAN (pencapaian / sasaran3) * 100
-    const persenPencapaian = s3 > 0 ? Number(((p / s3) * 100).toFixed(1)) : 100.0;
+    // % PENCAPAIAN (pencapaian / sasaran3) * 100 (maksimum 100.0%)
+    const rawPersenPencapaian = s3 > 0 ? Number(((p / s3) * 100).toFixed(1)) : 100.0;
+    const persenPencapaian = Math.min(100.0, rawPersenPencapaian);
     const persenPemberat = kpiRef.pemberat;
     // % PENCAPAIAN SEBENAR (% PENCAPAIAN * % PEMBERAT) / 100
     const persenPencapaianSebenar = Number(((persenPencapaian * persenPemberat) / 100).toFixed(1));
@@ -631,6 +758,125 @@ export default function App() {
 
     setEditingAchievementKpiNo(null);
     showToast(`Berjaya mengemaskini pencapaian ${kpiNo} bagi bulan [${selectedMonth}]`, 'success');
+  };
+
+  // Confirm Monthly Achievement Updated manually
+  const handleConfirmMonthUpdated = () => {
+    const updatedMonthlyAchievements = { ...currentYearData.monthlyAchievements };
+    const monthGrp = updatedMonthlyAchievements[selectedMonth] || {
+      month: selectedMonth,
+      isEdited: false,
+      achievements: {}
+    };
+
+    // Toggle or confirm as true
+    monthGrp.isEdited = true;
+
+    // Ensure all existing KPIs have a default record in achievements so there are no empty states
+    currentYearData.kpis.forEach(kpi => {
+      if (!monthGrp.achievements[kpi.noKpi]) {
+        monthGrp.achievements[kpi.noKpi] = {
+          noKpi: kpi.noKpi,
+          pencapaian: 0.0,
+          persenPencapaian: 0.0,
+          persenPemberat: kpi.pemberat,
+          persenPencapaianSebenar: 0.0,
+          statusPencapaian: 'Belum Dilaksanakan',
+          dokumenSokongan: null
+        };
+      }
+    });
+
+    updatedMonthlyAchievements[selectedMonth] = monthGrp;
+
+    const updatedYearData: kpiYearData = {
+      ...currentYearData,
+      monthlyAchievements: updatedMonthlyAchievements
+    };
+
+    setYearRecords(prev => ({
+      ...prev,
+      [selectedYear]: updatedYearData
+    }));
+
+    // Save to Firestore!
+    try {
+      setDoc(doc(db, 'yearRecords', String(selectedYear)), updatedYearData);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `yearRecords/${selectedYear}`);
+    }
+
+    showToast(`Pencapaian bulan ${selectedMonth} telah disahkan dan bertukar status ke [Telah Dikemaskini]`, 'success');
+  };
+
+  // Synchronize and refresh/recalculate monthly achievements based on latest KPI definitions
+  const handleRefreshMonthAchievementsData = () => {
+    const updatedMonthlyAchievements = { ...currentYearData.monthlyAchievements };
+    const monthGrp = updatedMonthlyAchievements[selectedMonth] || {
+      month: selectedMonth,
+      isEdited: false,
+      achievements: {}
+    };
+
+    let updatedCount = 0;
+
+    currentYearData.kpis.forEach(kpi => {
+      const ach = monthGrp.achievements[kpi.noKpi];
+      if (ach) {
+        const s3 = kpi.sasaran3 || 1;
+        const p = ach.pencapaian || 0.0;
+        
+        // Recalculate based on current KPI's target (sasaran3) and weight (pemberat)
+        const rawPersenPencapaian = s3 > 0 ? Number(((p / s3) * 100).toFixed(1)) : 100.0;
+        const persenPencapaian = Math.min(100.0, rawPersenPencapaian);
+        const persenPemberat = kpi.pemberat;
+        const persenPencapaianSebenar = Number(((persenPencapaian * persenPemberat) / 100).toFixed(1));
+
+        if (
+          ach.persenPemberat !== persenPemberat ||
+          ach.persenPencapaian !== persenPencapaian ||
+          ach.persenPencapaianSebenar !== persenPencapaianSebenar
+        ) {
+          ach.persenPemberat = persenPemberat;
+          ach.persenPencapaian = persenPencapaian;
+          ach.persenPencapaianSebenar = persenPencapaianSebenar;
+          updatedCount++;
+        }
+      } else {
+        // Create default achievement using latest KPI properties
+        monthGrp.achievements[kpi.noKpi] = {
+          noKpi: kpi.noKpi,
+          pencapaian: 0.0,
+          persenPencapaian: 0.0,
+          persenPemberat: kpi.pemberat,
+          persenPencapaianSebenar: 0.0,
+          statusPencapaian: 'Belum Dilaksanakan',
+          dokumenSokongan: null
+        };
+        updatedCount++;
+      }
+    });
+
+    updatedMonthlyAchievements[selectedMonth] = monthGrp;
+
+    const updatedYearData: kpiYearData = {
+      ...currentYearData,
+      monthlyAchievements: updatedMonthlyAchievements
+    };
+
+    setYearRecords(prev => ({
+      ...prev,
+      [selectedYear]: updatedYearData
+    }));
+
+    // Save to Firestore!
+    try {
+      setDoc(doc(db, 'yearRecords', String(selectedYear)), updatedYearData);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `yearRecords/${selectedYear}`);
+    }
+
+    showToast(`Menyegarkan semula data pencapaian bagi bulan ${selectedMonth}. ${updatedCount} KPI disegerakkan berdasarkan kerangka KPI terkini.`, 'success');
   };
 
   // Google Sheets Auth Handlers
@@ -719,7 +965,8 @@ export default function App() {
         if (kpiRef) {
           const val = Number(Number(row.pencapaian).toFixed(1));
           const s3 = kpiRef.sasaran3 || 1;
-          const persenPencapaian = s3 > 0 ? Number(((val / s3) * 100).toFixed(1)) : 100.0;
+          const rawPersenPencapaian = s3 > 0 ? Number(((val / s3) * 100).toFixed(1)) : 100.0;
+          const persenPencapaian = Math.min(100.0, rawPersenPencapaian);
           const persenPemberat = kpiRef.pemberat;
           const persenPencapaianSebenar = Number(((persenPencapaian * persenPemberat) / 100).toFixed(1));
 
@@ -774,10 +1021,13 @@ export default function App() {
   // Calculate High Level Metrics for Dashboard
   const monthAchievementsGroup = currentYearData.monthlyAchievements[selectedMonth];
   const totalWeightedProgress = currentYearData.kpis.length > 0 && monthAchievementsGroup
-    ? Number(currentYearData.kpis.reduce((sum, kpi) => {
-        const ach = monthAchievementsGroup.achievements[kpi.noKpi];
-        return sum + (ach ? ach.persenPencapaianSebenar : 0);
-      }, 0).toFixed(1))
+    ? (() => {
+        const sumVal = currentYearData.kpis.reduce((sum, kpi) => {
+          const ach = monthAchievementsGroup.achievements[kpi.noKpi];
+          return sum + (ach ? ach.persenPencapaianSebenar : 0);
+        }, 0);
+        return Math.floor(sumVal * 10) / 10;
+      })()
     : 0.0;
 
   // Average raw completion %
@@ -1452,8 +1702,8 @@ export default function App() {
 
                   </div>
 
-                  {/* ROW 2: LINE CHART & BAR CHART */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* ROW 2: LINE CHART & BAR CHART (SEPARATED FOR FULL WIDTH VIEW) */}
+                  <div className="flex flex-col gap-6">
                     
                     {/* Part C: Line chart for monthly progress with 4 gradient/band zones */}
                     <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
@@ -1476,14 +1726,14 @@ export default function App() {
                             return { month: m, value: avgValue };
                           });
 
-                          const w = 500;
+                          const w = 750;
                           const h = 200;
                           const ml = 40;
                           const mr = 15;
                           const mt = 20;
                           const mb = 30;
 
-                          const effW = w - ml - mr; // 445
+                          const effW = w - ml - mr; // 695
                           const effH = h - mt - mb; // 150
 
                           const getX = (idx: number) => ml + (idx * effW) / 11;
@@ -1510,8 +1760,8 @@ export default function App() {
                           const areaD = points.length > 0 ? `${pathD} L ${points[points.length - 1].x} ${getY(0)} L ${points[0].x} ${getY(0)} Z` : '';
 
                           return (
-                            <div className="overflow-x-auto">
-                              <svg width={w} height={h} className="mx-auto block overflow-visible">
+                            <div className="w-full">
+                              <svg viewBox={`0 0 ${w} ${h}`} width="100%" height="auto" className="mx-auto block overflow-visible max-h-[260px]">
                                 <defs>
                                   <linearGradient id="sweeping-area-grad" x1="0" y1="0" x2="0" y2="1">
                                     <stop offset="0%" stopColor="#004a8d" stopOpacity="0.32" />
@@ -1627,14 +1877,14 @@ export default function App() {
 
                       <div className="w-full">
                         {(() => {
-                          const w = 500;
+                          const w = 750;
                           const h = 200;
                           const ml = 40;
                           const mr = 15;
                           const mt = 20;
                           const mb = 30;
 
-                          const effW = w - ml - mr; // 445
+                          const effW = w - ml - mr; // 695
                           const effH = h - mt - mb; // 150
 
                           const kpisCount = currentYearData.kpis.length;
@@ -1642,8 +1892,8 @@ export default function App() {
                           const barWidth = Math.min(32, spacing * 0.55);
 
                           return (
-                            <div className="overflow-x-auto">
-                              <svg width={w} height={h} className="mx-auto block overflow-visible">
+                            <div className="w-full">
+                              <svg viewBox={`0 0 ${w} ${h}`} width="100%" height="auto" className="mx-auto block overflow-visible max-h-[260px]">
                                 {/* Grid lines */}
                                 <line x1={ml} y1={mt} x2={ml + effW} y2={mt} stroke="#f1f5f9" />
                                 <line x1={ml} y1={mt + effH * 0.25} x2={ml + effW} y2={mt + effH * 0.25} stroke="#f8fafc" strokeDasharray="3 3"/>
@@ -1731,7 +1981,7 @@ export default function App() {
                                         textAnchor="middle"
                                         className="text-[6.5px] font-black font-mono fill-rose-600 tracking-tighter"
                                       >
-                                        Sas:{kpi.sasaranAkhir.toFixed(0)}%
+                                        {kpi.sasaranAkhir.toFixed(0)}%
                                       </text>
                                       {/* Node Text */}
                                       <text 
@@ -1916,7 +2166,7 @@ export default function App() {
                         <th className="p-4 border-b border-slate-700 text-center">NO. KPI</th>
                         <th className="p-4 border-b border-slate-700">KOMPONEN & TERAS SSP</th>
                         <th className="p-4 border-b border-slate-700">BIDANG UTAMA</th>
-                        <th className="p-4 border-b border-slate-700">OBJEKTIF STRATEGIK & KPI</th>
+                        <th className="p-4 border-b border-slate-700 w-[200px] min-w-[200px]">OBJEKTIF STRATEGIK & KPI</th>
                         <th className="p-4 border-b border-slate-700">BAHAGIAN PELAKSANA</th>
                         <th className="p-4 border-b border-slate-700 text-center">PEMBERAT</th>
                         <th className="p-4 border-b border-slate-700 text-center">PENCAPAIAN ({selectedMonth})</th>
@@ -1983,10 +2233,10 @@ export default function App() {
                                 </div>
                               </td>
                               <td className="p-4 text-center">
-                                <span className={`inline-block rounded-full px-2 py-1 text-[10px] font-bold ${
+                                <span className={`text-[10px] font-bold ${
                                   ach.statusPencapaian === 'Tiada Pengisian' || ach.statusPencapaian === 'Belum Dilaksanakan'
-                                    ? 'bg-slate-100 text-slate-500'
-                                    : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                    ? 'text-slate-400'
+                                    : 'text-emerald-600'
                                 }`}>
                                   {ach.statusPencapaian}
                                 </span>
@@ -2039,6 +2289,27 @@ export default function App() {
                         showToast('Kerangka tahun ini telah DISAHKAN dan DIKUNCI. Anda tidak boleh menambah atau meminda KPI.', 'error');
                         return;
                       }
+                      // Reset fields to empty/default when opening clean form
+                      setFormKomponen('Kewangan');
+                      setFormTerasSsp('Teras 1- Kemampanan Kewangan');
+                      setFormBidangUtama('Kawalselia Ekonomi');
+                      setFormBahagianList([]);
+                      setFormObjektif('');
+                      setFormKpiText('');
+                      setFormInisiatif('');
+                      setFormPengukuran('');
+                      setFormStatusSebelum('');
+                      setFormSasaran1(0);
+                      setFormJustifikasi1('');
+                      setFormSasaran2(0);
+                      setFormJustifikasi2('');
+                      setFormSasaran3(0);
+                      setFormJustifikasi3('');
+                      setFormSasaran4(0);
+                      setFormJustifikasi4('');
+                      setFormSasaranAkhir(0);
+                      setFormPemberat(10);
+                      setEditingKpiId(null);
                       setIsAddKpiOpen(true);
                     }}
                     className={`font-bold px-4 py-2 rounded-xl text-xs flex items-center space-x-2 shadow-md ${
@@ -2055,21 +2326,27 @@ export default function App() {
 
               {/* KPI Score Card Form Panel (Slide-out or Collapsible Box) */}
               {isAddKpiOpen && (
-                <div className="bg-white rounded-2xl border-2 border-sky-500 p-6 shadow-lg transition-all">
+                <div id="kpi_form_panel" className="bg-white rounded-2xl border-2 border-sky-500 p-6 shadow-lg transition-all">
                   <div className="flex justify-between items-center border-b border-slate-100 pb-4 mb-5">
                     <div className="flex items-center space-x-2.5">
                       <span className="p-2 bg-sky-50 text-sky-600 rounded-xl">
-                        <Plus className="h-5 w-5" />
+                        {editingKpiId ? <Edit2 className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
                       </span>
                       <div>
                         <h4 className="text-base font-bold text-slate-900">
-                          Borang Tambah Penunjuk Prestasi Korporat Baru ({selectedYear})
+                          {editingKpiId 
+                            ? `Borang Kemaskini Penunjuk Prestasi Korporat (${currentYearData.kpis.find(k => k.id === editingKpiId)?.noKpi || 'KPI'})`
+                            : `Borang Tambah Penunjuk Prestasi Korporat Baru (${selectedYear})`
+                          }
                         </h4>
                         <p className="text-xs text-slate-400">Pengisian standard kualitatif score card dilesenkan oleh petunjuk SPAN</p>
                       </div>
                     </div>
                     <button 
-                      onClick={() => setIsAddKpiOpen(false)} 
+                      onClick={() => {
+                        setIsAddKpiOpen(false);
+                        setEditingKpiId(null);
+                      }} 
                       className="p-1.5 hover:bg-slate-100 rounded-full transition-colors"
                     >
                       <X className="h-5 w-5 text-slate-400" />
@@ -2081,7 +2358,7 @@ export default function App() {
                       
                       {/* Component */}
                       <div className="space-y-2">
-                        <label className="block text-xs font-bold text-slate-700 uppercase">KOMPONEN (Drop Down)</label>
+                        <label className="block text-xs font-bold text-slate-700 uppercase">KOMPONEN</label>
                         <select
                           required
                           value={formKomponen}
@@ -2096,7 +2373,7 @@ export default function App() {
 
                       {/* Teras SSP */}
                       <div className="space-y-2">
-                        <label className="block text-xs font-bold text-slate-700 uppercase">TERAS SSP2030 (Drop Down)</label>
+                        <label className="block text-xs font-bold text-slate-700 uppercase">TERAS SSP2030</label>
                         <select
                           required
                           value={formTerasSsp}
@@ -2111,7 +2388,7 @@ export default function App() {
 
                       {/* Bidang Utama */}
                       <div className="space-y-2">
-                        <label className="block text-xs font-bold text-slate-700 uppercase">BIDANG UTAMA (Drop Down)</label>
+                        <label className="block text-xs font-bold text-slate-700 uppercase">BIDANG UTAMA</label>
                         <select
                           required
                           value={formBidangUtama}
@@ -2181,7 +2458,7 @@ export default function App() {
                     <div className="space-y-4">
                       
                       <div className="space-y-1">
-                        <label className="block text-xs font-bold text-slate-700 uppercase">OBJEKTIF (Auto-Capitalize Each Word)</label>
+                        <label className="block text-xs font-bold text-slate-700 uppercase">OBJEKTIF</label>
                         <textarea
                           rows={2}
                           required
@@ -2194,55 +2471,55 @@ export default function App() {
                       </div>
 
                       <div className="space-y-1">
-                        <label className="block text-xs font-bold text-slate-700 uppercase">PETUNJUK PRESTASI UTAMA - KPI (Auto-Uppercase)</label>
+                        <label className="block text-xs font-bold text-slate-700 uppercase">INISIATIF</label>
                         <textarea
                           rows={2}
                           required
-                          placeholder="Contoh: PERATUS GANTIAN PAIP RETIKULASI KEPURBAAN DI NEGERI..."
-                          value={formKpiText}
-                          onChange={(e) => setFormKpiText(e.target.value)}
-                          onBlur={() => setFormKpiText(handleUppercase(formKpiText))}
-                          className="w-full text-xs border border-slate-300 rounded-xl px-3 py-2 bg-slate-50 focus:outline-none focus:border-sky-500 outline-none font-bold"
+                          placeholder="Tindakan mendedikasikan kawalan..."
+                          value={formInisiatif}
+                          onChange={(e) => setFormInisiatif(e.target.value)}
+                          onBlur={() => setFormInisiatif(handleCapitalizeEachWord(formInisiatif))}
+                          className="w-full text-xs border border-slate-300 rounded-xl px-3 py-2 bg-slate-50 focus:outline-none focus:border-sky-500 outline-none resize-y font-medium"
                         />
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="space-y-1">
-                          <label className="block text-xs font-bold text-slate-700 uppercase">INISIATIF (Capitalize Each Word)</label>
-                          <input
-                            type="text"
+                          <label className="block text-xs font-bold text-slate-700 uppercase">PETUNJUK PRESTASI UTAMA - KPI</label>
+                          <textarea
+                            rows={2}
                             required
-                            placeholder="Tindakan mendedikasikan kawalan..."
-                            value={formInisiatif}
-                            onChange={(e) => setFormInisiatif(e.target.value)}
-                            onBlur={() => setFormInisiatif(handleCapitalizeEachWord(formInisiatif))}
-                            className="w-full text-xs border border-slate-300 rounded-xl px-3 py-2 bg-slate-50 focus:outline-none focus:border-sky-500 outline-none"
+                            placeholder="Contoh: PERATUS GANTIAN PAIP RETIKULASI KEPURBAAN DI NEGERI..."
+                            value={formKpiText}
+                            onChange={(e) => setFormKpiText(e.target.value)}
+                            onBlur={() => setFormKpiText(handleUppercase(formKpiText))}
+                            className="w-full text-xs border border-slate-300 rounded-xl px-3 py-2 bg-slate-50 focus:outline-none focus:border-sky-500 outline-none resize-y font-bold"
                           />
                         </div>
 
                         <div className="space-y-1">
-                          <label className="block text-xs font-bold text-slate-700 uppercase">PENGUKURAN (Capitalize Each Word)</label>
-                          <input
-                            type="text"
+                          <label className="block text-xs font-bold text-slate-700 uppercase">PENGUKURAN</label>
+                          <textarea
+                            rows={2}
                             required
                             placeholder="Bilangan program dilaksanakan..."
                             value={formPengukuran}
                             onChange={(e) => setFormPengukuran(e.target.value)}
                             onBlur={() => setFormPengukuran(handleCapitalizeEachWord(formPengukuran))}
-                            className="w-full text-xs border border-slate-300 rounded-xl px-3 py-2 bg-slate-50 focus:outline-none focus:border-sky-500 outline-none"
+                            className="w-full text-xs border border-slate-300 rounded-xl px-3 py-2 bg-slate-50 focus:outline-none focus:border-sky-500 outline-none resize-y"
                           />
                         </div>
 
                         <div className="space-y-1">
                           <label className="block text-xs font-bold text-slate-700 uppercase">STATUS PENCAPAIAN TAHUN SEBELUM</label>
-                          <input
-                            type="text"
+                          <textarea
+                            rows={2}
                             required
                             placeholder="Mencapai sasaran 85%..."
                             value={formStatusSebelum}
                             onChange={(e) => setFormStatusSebelum(e.target.value)}
                             onBlur={() => setFormStatusSebelum(handleCapitalizeEachWord(formStatusSebelum))}
-                            className="w-full text-xs border border-slate-300 rounded-xl px-3 py-2 bg-slate-50 focus:outline-none focus:border-sky-500 outline-none"
+                            className="w-full text-xs border border-slate-300 rounded-xl px-3 py-2 bg-slate-50 focus:outline-none focus:border-sky-500 outline-none resize-y"
                           />
                         </div>
                       </div>
@@ -2254,7 +2531,7 @@ export default function App() {
                       
                       <div className="flex items-center space-x-2 text-slate-700 pb-2 border-b border-slate-200">
                         <TrendingUp className="h-4 w-4 text-sky-500" />
-                        <span className="text-xs font-bold uppercase">Sasaran Berperingkat Seksyen (1 Decimal Place)</span>
+                        <span className="text-xs font-bold uppercase">Sasaran Berperingkat Seksyen</span>
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -2270,14 +2547,14 @@ export default function App() {
                             onChange={(e) => setFormSasaran1(parseFloat(e.target.value) || 0)}
                             className="w-full text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 bg-white font-mono"
                           />
-                          <input
-                            type="text"
+                          <textarea
+                            rows={2}
                             placeholder="Justifikasi S1"
                             required
                             value={formJustifikasi1}
                             onChange={(e) => setFormJustifikasi1(e.target.value)}
                             onBlur={() => setFormJustifikasi1(handleCapitalizeEachWord(formJustifikasi1))}
-                            className="w-full text-[10px] border border-slate-300 rounded-lg px-2 py-1 bg-white mt-1.5"
+                            className="w-full text-[10px] border border-slate-300 rounded-lg px-2 py-1 bg-white mt-1.5 resize-y"
                           />
                         </div>
 
@@ -2292,14 +2569,14 @@ export default function App() {
                             onChange={(e) => setFormSasaran2(parseFloat(e.target.value) || 0)}
                             className="w-full text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 bg-white font-mono"
                           />
-                          <input
-                            type="text"
+                          <textarea
+                            rows={2}
                             placeholder="Justifikasi S2"
                             required
                             value={formJustifikasi2}
                             onChange={(e) => setFormJustifikasi2(e.target.value)}
                             onBlur={() => setFormJustifikasi2(handleCapitalizeEachWord(formJustifikasi2))}
-                            className="w-full text-[10px] border border-slate-300 rounded-lg px-2 py-1 bg-white mt-1.5"
+                            className="w-full text-[10px] border border-slate-300 rounded-lg px-2 py-1 bg-white mt-1.5 resize-y"
                           />
                         </div>
 
@@ -2314,14 +2591,14 @@ export default function App() {
                             onChange={(e) => setFormSasaran3(parseFloat(e.target.value) || 0)}
                             className="w-full text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 bg-white font-mono"
                           />
-                          <input
-                            type="text"
+                          <textarea
+                            rows={2}
                             placeholder="Justifikasi S3"
                             required
                             value={formJustifikasi3}
                             onChange={(e) => setFormJustifikasi3(e.target.value)}
                             onBlur={() => setFormJustifikasi3(handleCapitalizeEachWord(formJustifikasi3))}
-                            className="w-full text-[10px] border border-slate-300 rounded-lg px-2 py-1 bg-white mt-1.5"
+                            className="w-full text-[10px] border border-slate-300 rounded-lg px-2 py-1 bg-white mt-1.5 resize-y"
                           />
                         </div>
 
@@ -2336,14 +2613,14 @@ export default function App() {
                             onChange={(e) => setFormSasaran4(parseFloat(e.target.value) || 0)}
                             className="w-full text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 bg-white font-mono"
                           />
-                          <input
-                            type="text"
+                          <textarea
+                            rows={2}
                             placeholder="Justifikasi S4"
                             required
                             value={formJustifikasi4}
                             onChange={(e) => setFormJustifikasi4(e.target.value)}
                             onBlur={() => setFormJustifikasi4(handleCapitalizeEachWord(formJustifikasi4))}
-                            className="w-full text-[10px] border border-slate-300 rounded-lg px-2 py-1 bg-white mt-1.5"
+                            className="w-full text-[10px] border border-slate-300 rounded-lg px-2 py-1 bg-white mt-1.5 resize-y"
                           />
                         </div>
 
@@ -2354,7 +2631,7 @@ export default function App() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       
                       <div className="space-y-1">
-                        <label className="block text-xs font-bold text-slate-700 uppercase">% SASARAN AKHIR (Percentage, 1 Decimal Place)</label>
+                        <label className="block text-xs font-bold text-slate-700 uppercase">% SASARAN AKHIR</label>
                         <input
                           type="number"
                           step="0.1"
@@ -2366,7 +2643,7 @@ export default function App() {
                       </div>
 
                       <div className="space-y-1">
-                        <label className="block text-xs font-bold text-slate-700 uppercase">% PEMBERAT (Pemberat Peratusan, Maks: 100)</label>
+                        <label className="block text-xs font-bold text-slate-700 uppercase">% PEMBERAT</label>
                         <input
                           type="number"
                           step="0.1"
@@ -2415,9 +2692,19 @@ export default function App() {
                   <div className="flex items-center space-x-3">
                     <span className="text-xs text-slate-500">Kontekstual:</span>
                     {currentYearData.isSubmitted ? (
-                      <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg px-2.5 py-1 text-xs font-bold flex items-center">
-                        <Lock className="h-3 w-3 mr-1" /> DERAFT DIKUNCI / SUBMITTED
-                      </span>
+                      <div className="flex items-center space-x-2">
+                        <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg px-2.5 py-1 text-xs font-bold flex items-center">
+                          <Lock className="h-3 w-3 mr-1" /> DERAFT DIKUNCI / SUBMITTED
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setIsUnlockModalOpen(true)}
+                          className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg px-2.5 py-1 text-xs font-bold flex items-center transition-all shadow-xs cursor-pointer"
+                          title="Buka Kunci Kerangka"
+                        >
+                          <Unlock className="h-3 w-3 mr-1" /> Buka Kunci / Unlock
+                        </button>
+                      </div>
                     ) : (
                       <span className="bg-amber-50 text-amber-800 border border-amber-200 rounded-lg px-2.5 py-1 text-xs font-bold flex items-center animate-pulse">
                         <Edit2 className="h-3 w-3 mr-1" /> MOD DERAFT (Sedia Diedit)
@@ -2482,6 +2769,9 @@ export default function App() {
                             <td className="p-4 space-y-1">
                               <span className="font-semibold text-slate-800 block text-[11px] leading-tight">{kpi.komponen}</span>
                               <span className="text-[9px] text-slate-400 font-mono block leading-tight">{kpi.noSsp}</span>
+                              <span className="bg-sky-50 text-sky-800 border border-sky-100 text-[9px] px-1.5 py-0.5 rounded font-medium inline-block mt-1">
+                                {kpi.bidangUtama}
+                              </span>
                             </td>
                             <td className="p-4 max-w-sm space-y-1">
                               <div className="text-slate-500 font-semibold leading-tight text-[11px]" title={kpi.objektif}>{kpi.objektif}</div>
@@ -2554,13 +2844,22 @@ export default function App() {
                             {/* Actions if draft only */}
                             {!currentYearData.isSubmitted && (
                               <td className="p-4 text-center">
-                                <button
-                                  onClick={() => handleRemoveKpi(kpi.id, kpi.noKpi)}
-                                  className="p-1.5 text-rose-500 hover:text-white hover:bg-rose-500 rounded-lg transition-all"
-                                  title="Gugurkan KPI dari Kerangka"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </button>
+                                <div className="flex items-center justify-center space-x-1.5">
+                                  <button
+                                    onClick={() => handleStartEditKpi(kpi)}
+                                    className="p-1.5 text-sky-600 hover:text-white hover:bg-sky-600 rounded-lg transition-all"
+                                    title="Edit data KPI"
+                                  >
+                                    <Edit2 className="h-4 w-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleRemoveKpi(kpi.id, kpi.noKpi)}
+                                    className="p-1.5 text-rose-500 hover:text-white hover:bg-rose-500 rounded-lg transition-all"
+                                    title="Gugurkan KPI dari Kerangka"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
+                                </div>
                               </td>
                             )}
                           </tr>
@@ -2573,7 +2872,7 @@ export default function App() {
                       <tfoot className="bg-slate-50 font-bold border-t border-slate-200">
                         <tr>
                           <td colSpan={2} className="p-4 font-extrabold text-slate-800 text-right uppercase">
-                            JUMLAH BAWAH (SUMMARY TOTAL)
+                            JUMLAH KESELURUHAN
                           </td>
                           <td className="p-4 text-slate-500 text-xs">
                             Kompilasi {kpiCount} Petunjuk Utama
@@ -2724,7 +3023,7 @@ export default function App() {
                             <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
                             <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
                           </svg>
-                          <span>Pautkan Akaun Google untuk Google Sheets</span>
+                          <span className="text-sm">Pautkan Akaun Google untuk Google Sheets</span>
                         </button>
                       </div>
                     )}
@@ -2811,8 +3110,12 @@ export default function App() {
                               )}
                             </div>
                             
-                            <span className="text-[8px] uppercase tracking-tight block">
-                              {isEdited ? 'Berisi' : 'Sedia'}
+                            <span className={`text-[7px] uppercase tracking-tighter leading-none block font-semibold ${
+                              isEdited 
+                                ? (isSelected ? 'text-emerald-200 font-extrabold' : 'text-emerald-600 font-extrabold') 
+                                : ''
+                            }`}>
+                              {isEdited ? 'Telah Dikemaskini' : 'Sedia Dikemaskini'}
                             </span>
                           </button>
                         );
@@ -2831,8 +3134,10 @@ export default function App() {
                       </div>
 
                       <div className="flex items-center space-x-2 text-xs font-semibold text-slate-500">
-                        <span>Penyelarasan Nilai S3:</span>
-                        <span className="bg-slate-100 text-slate-800 px-2 py-1 rounded font-bold">Ambang Sasaran 3 Utama</span>
+                        <span>% Pencapaian Keseluruhan:</span>
+                        <span className="bg-emerald-50 text-emerald-800 border border-emerald-100 px-3.5 py-1.5 rounded-xl font-black font-mono text-[22px] shadow-sm leading-none">
+                          {totalWeightedProgress.toFixed(1)}%
+                        </span>
                       </div>
                     </div>
 
@@ -2854,316 +3159,328 @@ export default function App() {
                         return (
                           <div key={kpi.id} className="p-6 transition-colors hover:bg-slate-50/30">
                             
-                            {/* Headline Header */}
-                            <div className="flex flex-col md:flex-row md:items-center justify-between pb-3 border-b border-slate-100 gap-4 mb-4">
-                              <div className="flex items-center space-x-3">
-                                <span className="bg-slate-900 text-white font-mono font-bold text-xs px-3 py-1 rounded-lg">
-                                  {kpi.noKpi}
-                                </span>
-                                <div>
-                                  <span className="bg-sky-50 text-sky-800 border border-sky-100 text-[10px] px-2 py-0.5 rounded font-bold">
-                                    {kpi.komponen}
+                            {!isEditingThis ? (
+                              /* COMPACT DEFAULT VIEW: Show No. KPI, PETUNJUK PRESTASI, Pencapaian, Sasaran (S3), % Pencapaian, % Pemberat, % Pencapaian Sebenar and Edit Button */
+                              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 w-full">
+                                <div className="flex items-start sm:items-center space-x-4 flex-1 min-w-0">
+                                  <span className="bg-slate-900 text-white font-mono font-bold text-xs px-3.5 py-2 rounded-xl flex-shrink-0 shadow-sm">
+                                    {kpi.noKpi}
                                   </span>
-                                  <span className="text-[10px] text-slate-400 font-mono ml-2.5">{kpi.noSsp}</span>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-xs font-bold text-slate-800 uppercase leading-relaxed font-sans">
+                                      {kpi.kpi}
+                                    </p>
+                                  </div>
                                 </div>
-                              </div>
 
-                              <div className="flex items-center space-x-2">
-                                {!isEditingThis ? (
+                                {/* Right side metrics group & action button */}
+                                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6 flex-shrink-0">
+                                  {/* Metrics group */}
+                                  <div className="grid grid-cols-2 sm:flex items-center gap-3 sm:gap-4 bg-slate-50/80 border border-slate-100 rounded-xl p-2 px-3">
+                                    <div className="text-center min-w-[70px]">
+                                      <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pencapaian</span>
+                                      <span className="font-mono text-[16px] font-bold text-slate-700">{ach.pencapaian.toFixed(1)}</span>
+                                    </div>
+                                    <div className="text-center min-w-[70px] border-l border-slate-200 pl-3">
+                                      <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Sasaran (S3)</span>
+                                      <span className="font-mono text-[16px] font-bold text-slate-700">{kpi.sasaran3.toFixed(1)}</span>
+                                    </div>
+                                    <div className="text-center min-w-[75px] border-l border-slate-200 pl-3">
+                                      <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">% Pencapaian</span>
+                                      <span className={`font-mono text-[16px] font-extrabold ${getGradeColorStyle(ach.persenPencapaian)}`}>{ach.persenPencapaian.toFixed(1)}%</span>
+                                    </div>
+                                    <div className="text-center min-w-[70px] border-l border-slate-200 pl-3">
+                                      <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">% Pemberat</span>
+                                      <span className="font-mono text-[16px] font-bold text-slate-600">{kpi.pemberat.toFixed(1)}%</span>
+                                    </div>
+                                    <div className="text-center min-w-[80px] border-l border-slate-200 pl-3">
+                                      <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">% Sebenar</span>
+                                      <span className="font-mono text-[16px] font-black text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-100">{ach.persenPencapaianSebenar.toFixed(1)}%</span>
+                                    </div>
+                                  </div>
+
                                   <button
                                     id={`btn_edit_achievement_${kpi.noKpi}`}
                                     onClick={() => handleStartEditAchievement(kpi.noKpi, ach)}
-                                    className="bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 font-bold px-3 py-1.5 rounded-lg text-xs flex items-center space-x-1.5 transition-colors"
+                                    className="bg-sky-600 hover:bg-sky-700 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center space-x-2 transition-all shadow-md shadow-sky-600/15 cursor-pointer hover:-translate-y-0.5"
                                   >
-                                    <Edit2 className="h-3 w-3" />
+                                    <Edit2 className="h-3.5 w-3.5" />
                                     <span>EDIT PENCAPAIAN</span>
                                   </button>
-                                ) : (
-                                  <span className="bg-rose-50 text-rose-700 text-xs px-2.5 py-1 rounded-lg font-bold flex items-center animate-pulse">
-                                    <Edit2 className="h-3 w-3 mr-1" /> MOD EDITING AKTIF (Hanya 3 Medan Berfungsi)
-                                  </span>
-                                )}
+                                </div>
                               </div>
-                            </div>
-
-                            {/* Core description grid */}
-                            <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
-                              
-                              {/* Left column: static descriptors (locked) */}
-                              <div className="md:col-span-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                
-                                <div className="space-y-1">
-                                  <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">OBJEKTIF STRATEGIK</span>
-                                  <p className="text-xs text-slate-500 leading-normal bg-slate-50 p-2.5 rounded-lg border border-slate-100 font-medium">
-                                    {kpi.objektif}
-                                  </p>
-                                </div>
-
-                                <div className="space-y-1">
-                                  <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">PETUNJUK PRESTASI - KPI (Locked)</span>
-                                  <p className="text-xs text-slate-950 leading-normal bg-slate-50 p-2.5 rounded-lg border border-slate-100 font-bold uppercase">
-                                    {kpi.kpi}
-                                  </p>
-                                </div>
-
-                                <div className="space-y-1">
-                                  <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">INISIATIF EKSEKUSI</span>
-                                  <p className="text-xs text-slate-600 leading-normal bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-                                    {kpi.inisiatif}
-                                  </p>
-                                </div>
-
-                                <div className="space-y-1">
-                                  <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">KAEDAH PENGUKURAN</span>
-                                  <p className="text-xs text-slate-600 leading-normal bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-                                    {kpi.pengukuran}
-                                  </p>
-                                </div>
-
-                                <div className="space-y-1">
-                                  <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Pencapaian Tahun Sebelum</span>
-                                  <p className="text-xs text-slate-500 leading-normal bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-                                    {kpi.statusPencapaianTahunSebelum}
-                                  </p>
-                                </div>
-
-                                <div className="space-y-1">
-                                  <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Ambang Sasaran Utama (S3)</span>
-                                  <p className="text-xs text-slate-900 leading-normal bg-sky-50 px-3 py-2.5 rounded-lg border border-sky-100 font-bold font-mono">
-                                    {kpi.sasaran3.toFixed(1)}
-                                  </p>
-                                </div>
-
-                              </div>
-
-                              {/* Right column: reactive metrics & dynamic inputs */}
-                              <div className="md:col-span-4 bg-slate-50/70 p-5 rounded-2xl border border-slate-200">
-                                
-                                {isEditingThis ? (
-                                  /* ACTIVE EDIT MODE PANEL */
-                                  <div className="space-y-4">
-                                    <div className="flex items-center space-x-1.5 text-slate-800 pb-1.5 border-b border-slate-200">
-                                      <Edit2 className="h-4 w-4 text-rose-500" />
-                                      <span className="text-xs font-bold uppercase text-rose-700">Pindaan Pencapaian {kpi.noKpi}</span>
-                                    </div>
-
-                                    {/* 1. Pencapaian input */}
-                                    <div className="space-y-1">
-                                      <label className="block text-[10px] uppercase font-bold text-slate-700">
-                                        PENCAPAIAN (1 decimal place) *
-                                      </label>
-                                      <input
-                                        type="number"
-                                        step="0.1"
-                                        required
-                                        value={achInputPencapaian}
-                                        onChange={(e) => setAchInputPencapaian(parseFloat(e.target.value) || 0)}
-                                        className="w-full text-xs font-bold border border-slate-300 rounded-xl px-2.5 py-1.5 bg-white font-mono focus:outline-none focus:border-rose-500"
-                                      />
-                                      <span className="text-[8px] text-slate-400 block leading-none">
-                                        Perlu dibandingkan dengan S3 (<b>{kpi.sasaran3.toFixed(1)}</b>)
+                            ) : (
+                              /* FULL EXPANDED EDITING VIEW */
+                              <>
+                                {/* Headline Header */}
+                                <div className="flex flex-col md:flex-row md:items-center justify-between pb-3 border-b border-slate-100 gap-4 mb-4">
+                                  <div className="flex items-center space-x-3">
+                                    <span className="bg-slate-900 text-white font-mono font-bold text-xs px-3 py-1 rounded-lg">
+                                      {kpi.noKpi}
+                                    </span>
+                                    <div>
+                                      <span className="bg-sky-50 text-sky-800 border border-sky-100 text-[10px] px-2 py-0.5 rounded font-bold">
+                                        {kpi.komponen}
                                       </span>
+                                      <span className="text-[10px] text-slate-400 font-mono ml-2.5">{kpi.noSsp}</span>
                                     </div>
-
-                                    {/* 2. Status Pencapaian */}
-                                    <div className="space-y-1">
-                                      <label className="block text-[10px] uppercase font-bold text-slate-700">
-                                        STATUS PENCAPAIAN (Long Text) *
-                                      </label>
-                                      <textarea
-                                        rows={2}
-                                        required
-                                        placeholder="Tulis status kemajuan semasa, isu, atau ringkasan tindakan..."
-                                        value={achInputStatus}
-                                        onChange={(e) => setAchInputStatus(e.target.value)}
-                                        onBlur={() => setAchInputStatus(handleCapitalizeEachWord(achInputStatus))}
-                                        className="w-full text-xs border border-slate-300 rounded-xl px-2.5 py-1.5 bg-white focus:outline-none focus:border-rose-500 font-medium"
-                                      />
-                                    </div>
-
-                                    {/* 3. Dokumen Sokongan (File uploader, max 2MB, PDF/Image) */}
-                                    <div className="space-y-1">
-                                      <label className="block text-[10px] uppercase font-bold text-slate-700">
-                                        DOKUMEN SOKONGAN (PDF & IMAGE MAKS 2MB)
-                                      </label>
-                                      
-                                      <div className="flex items-center space-x-2 pt-1">
-                                        <label className="bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 text-xs font-bold px-3 py-1.5 rounded-lg flex items-center space-x-1 cursor-pointer transition-colors shadow-xs">
-                                          <Upload className="h-3 w-3 text-slate-500" />
-                                          <span>Pilih Fail</span>
-                                          <input
-                                            type="file"
-                                            accept=".pdf, .png, .jpg, .jpeg"
-                                            onChange={handleFileChange}
-                                            className="hidden"
-                                          />
-                                        </label>
-
-                                        {achInputFile && (
-                                          <button
-                                            type="button"
-                                            onClick={() => setAchInputFile(null)}
-                                            className="p-1 px-1.5 bg-rose-50 text-rose-600 rounded text-[9px] hover:bg-rose-100 font-bold transition-all"
-                                          >
-                                            Padam Fail
-                                          </button>
-                                        )}
-                                      </div>
-
-                                      {/* Selected file visualization */}
-                                      {achInputFile ? (
-                                        <div className="mt-2 bg-slate-100/80 rounded-lg p-2 flex items-center justify-between border border-slate-200">
-                                          <div className="flex items-center space-x-1.5 min-w-0">
-                                            <FileText className="h-4 w-4 text-red-500 flex-shrink-0" />
-                                            <div className="truncate text-[10px] font-semibold text-slate-800">
-                                              {achInputFile.name}
-                                            </div>
-                                          </div>
-                                          <span className="text-[9px] font-mono text-slate-400 flex-shrink-0 ml-2">
-                                            {(achInputFile.size / (1024 * 1024)).toFixed(2)} MB
-                                          </span>
-                                        </div>
-                                      ) : (
-                                        <span className="text-[9px] italic text-slate-400 block pt-1">Tiada fail dipautkan. Dokumen audit digalakkan.</span>
-                                      )}
-
-                                      {fileError && (
-                                        <span className="text-[9px] font-bold text-rose-500 leading-none pt-1 block">
-                                          {fileError}
-                                        </span>
-                                      )}
-                                    </div>
-
-                                    {/* Action Buttons */}
-                                    <div className="flex justify-end space-x-2 pt-2 border-t border-slate-200">
-                                      <button
-                                        type="button"
-                                        onClick={() => setEditingAchievementKpiNo(null)}
-                                        className="bg-slate-200 hover:bg-slate-300 text-slate-800 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
-                                      >
-                                        Batal
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleSaveAchievement(kpi.noKpi)}
-                                        className="bg-rose-600 hover:bg-rose-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm"
-                                      >
-                                        Simpan
-                                      </button>
-                                    </div>
-
-                                    {/* Reactive Live Calculations preview */}
-                                    <div className="bg-white/80 p-3 rounded-lg border border-slate-200 text-xs space-y-1.5 mt-2">
-                                      <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest block">Kalkulator Pengisian Masa Nyata</span>
-                                      <div className="flex justify-between">
-                                        <span className="text-slate-500">% PENCAPAIAN:</span>
-                                        <span className="font-mono font-bold text-sky-800">
-                                          { (kpi.sasaran3 > 0 ? (achInputPencapaian / kpi.sasaran3) * 100 : 0).toFixed(1) }%
-                                        </span>
-                                      </div>
-                                      <div className="flex justify-between">
-                                        <span className="text-slate-500">% PENCAPAIAN SEBENAR:</span>
-                                        <span className="font-mono font-bold text-emerald-800">
-                                          { (((kpi.sasaran3 > 0 ? (achInputPencapaian / kpi.sasaran3) * 100 : 0) * kpi.pemberat) / 100).toFixed(1) }%
-                                        </span>
-                                      </div>
-                                    </div>
-
                                   </div>
-                                ) : (
-                                  /* READ ONLY SECURE LOCKED VIEW */
-                                  <div className="space-y-4">
+
+                                  <div className="flex items-center space-x-2">
+                                    <span className="bg-rose-50 text-rose-700 text-xs px-2.5 py-1 rounded-lg font-bold flex items-center animate-pulse">
+                                      <Edit2 className="h-3 w-3 mr-1" /> MOD EDITING AKTIF (Hanya 3 Medan Berfungsi)
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Core description grid */}
+                                <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+                                  
+                                  {/* Left column: static descriptors (locked) */}
+                                  <div className="md:col-span-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     
-                                    <div className="flex items-center space-x-1 text-slate-500 pb-1.5 border-b border-slate-100">
-                                      <Lock className="h-3 w-3 text-slate-400" />
-                                      <span className="text-[10px] font-bold text-slate-400 uppercase">Audit & Hasil Petunjuk ({selectedMonth})</span>
-                                    </div>
-
-                                    {/* Calculated output 1: % Pencapaian */}
-                                    <div className="flex justify-between items-center text-xs">
-                                      <span className="text-slate-500 font-medium">PENCAPAIAN SEBENAR:</span>
-                                      <span className="font-mono font-bold text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-200">
-                                        {ach.pencapaian.toFixed(1)}
-                                      </span>
-                                    </div>
-
-                                    {/* Calculated output 2: % PENCAPAIAN */}
-                                    <div className="flex justify-between items-center text-xs">
-                                      <span className="text-slate-500 font-medium">% PENCAPAIAN:</span>
-                                      <span className="font-mono font-extrabold text-[#0369a1]">
-                                        {ach.persenPencapaian.toFixed(1)}%
-                                      </span>
-                                    </div>
-
-                                    {/* Calculated output 3: % PEMBERAT */}
-                                    <div className="flex justify-between items-center text-xs">
-                                      <span className="text-slate-500 font-medium">% PEMBERAT (Locked):</span>
-                                      <span className="font-mono font-bold text-slate-600">
-                                        {ach.persenPemberat.toFixed(1)}%
-                                      </span>
-                                    </div>
-
-                                    {/* Calculated output 4: % PENCAPAIAN SEBENAR */}
-                                    <div className="flex justify-between items-center text-xs pt-1.5 border-t border-dashed border-slate-200">
-                                      <span className="text-slate-800 font-bold">% PENCAPAIAN SEBENAR:</span>
-                                      <span className="font-mono font-black text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 text-sm">
-                                        {ach.persenPencapaianSebenar.toFixed(1)}%
-                                      </span>
-                                    </div>
-
-                                    {/* Status of accomplishment description */}
                                     <div className="space-y-1">
-                                      <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Huraian Status Kemajuan</span>
-                                      <p className="text-xs text-slate-500 bg-white p-2.5 rounded-lg border border-slate-100 italic leading-normal font-medium">
-                                        "{ach.statusPencapaian}"
+                                      <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">OBJEKTIF STRATEGIK</span>
+                                      <p className="text-xs text-slate-500 leading-normal bg-slate-50 p-2.5 rounded-lg border border-slate-100 font-medium">
+                                        {kpi.objektif}
                                       </p>
                                     </div>
 
-                                    {/* Supporting attachment display */}
                                     <div className="space-y-1">
-                                      <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Rujukan Fail Audit</span>
-                                      {ach.dokumenSokongan ? (
-                                        <div className="bg-emerald-50/60 border border-emerald-200 rounded-lg p-2 flex items-center justify-between">
-                                          <div className="flex items-center space-x-1.5 min-w-0">
-                                            <FileCheck className="h-4 w-4 text-emerald-600 flex-shrink-0" />
-                                            <span className="text-[10px] font-bold text-emerald-950 truncate">
-                                              {ach.dokumenSokongan.name}
-                                            </span>
-                                          </div>
-                                          <a 
-                                            href={(ach.dokumenSokongan as any).dataUrl || '#'} 
-                                            target="_blank" 
-                                            rel="noopener noreferrer"
-                                            className="text-[9px] font-bold text-sky-800 hover:underline flex-shrink-0 ml-2"
-                                            onClick={(e) => {
-                                              if (!(ach.dokumenSokongan as any).dataUrl) {
-                                                e.preventDefault();
-                                                showToast('Fail simulasi tidak mempunyai url pautan dimuat naik berasingan.', 'ref');
-                                              }
-                                            }}
-                                          >
-                                            Papar
-                                          </a>
-                                        </div>
-                                      ) : (
-                                        <span className="text-[9px] italic text-[#f43f5e] font-semibold block">Tiada Dokumen Sokongan Disertakan</span>
-                                      )}
+                                      <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">PETUNJUK PRESTASI - KPI (Locked)</span>
+                                      <p className="text-xs text-slate-950 leading-normal bg-slate-50 p-2.5 rounded-lg border border-slate-100 font-bold uppercase">
+                                        {kpi.kpi}
+                                      </p>
                                     </div>
 
-                                    <div className="text-[9px] text-slate-400 text-center uppercase tracking-wider font-mono">
-                                      Formula: (% PENCAPAIAN * PEMBERAT)
+                                    <div className="space-y-1">
+                                      <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">INISIATIF EKSEKUSI</span>
+                                      <p className="text-xs text-slate-600 leading-normal bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                                        {kpi.inisiatif}
+                                      </p>
+                                    </div>
+
+                                    <div className="space-y-1">
+                                      <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">KAEDAH PENGUKURAN</span>
+                                      <p className="text-xs text-slate-600 leading-normal bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                                        {kpi.pengukuran}
+                                      </p>
+                                    </div>
+
+                                    <div className="space-y-1">
+                                      <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Pencapaian Tahun Sebelum</span>
+                                      <p className="text-xs text-slate-500 leading-normal bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                                        {kpi.statusPencapaianTahunSebelum}
+                                      </p>
+                                    </div>
+
+                                    <div className="space-y-1">
+                                      <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Ambang Sasaran Utama (S3)</span>
+                                      <p className="text-xs text-slate-900 leading-normal bg-sky-50 px-3 py-2.5 rounded-lg border border-sky-100 font-bold font-mono">
+                                        {kpi.sasaran3.toFixed(1)}
+                                      </p>
+                                      <div className="mt-3 space-y-1">
+                                        <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Justifikasi Sasaran Utama (S3)</span>
+                                        <p className="text-xs text-sky-900 leading-normal bg-[#f0f9ff] p-2.5 rounded-lg border border-sky-100 font-medium">
+                                          {kpi.justifikasiSasaran3 || 'Tiada Justifikasi'}
+                                        </p>
+                                      </div>
+                                    </div>
+
+                                    <div className="space-y-1">
+                                      <span className="hidden">Justifikasi Sasaran Utama (S3) [Hiden]</span>
+                                      <p className="hidden">
+                                        {kpi.justifikasiSasaran3 || 'Tiada Justifikasi'}
+                                      </p>
                                     </div>
 
                                   </div>
-                                )}
 
-                              </div>
+                                  {/* Right column: reactive metrics & dynamic inputs */}
+                                  <div className="md:col-span-4 bg-slate-50/70 p-5 rounded-2xl border border-slate-200">
+                                    
+                                    {/* ACTIVE EDIT MODE PANEL */}
+                                    <div className="space-y-4">
+                                      <div className="flex items-center space-x-1.5 text-slate-800 pb-1.5 border-b border-slate-200">
+                                        <Edit2 className="h-4 w-4 text-rose-500" />
+                                        <span className="text-xs font-bold uppercase text-rose-700">Pindaan Pencapaian {kpi.noKpi}</span>
+                                      </div>
 
-                            </div>
+                                      {/* 1. Pencapaian input */}
+                                      <div className="space-y-1">
+                                        <label className="block text-[10px] uppercase font-bold text-slate-700">
+                                          PENCAPAIAN *
+                                        </label>
+                                        <input
+                                          type="number"
+                                          step="0.1"
+                                          required
+                                          value={achInputPencapaian}
+                                          onChange={(e) => setAchInputPencapaian(parseFloat(e.target.value) || 0)}
+                                          className="w-full text-xs font-bold border border-slate-300 rounded-xl px-2.5 py-1.5 bg-white font-mono focus:outline-none focus:border-rose-500"
+                                        />
+                                        <span className="text-[8px] text-slate-400 block leading-none">
+                                          Perlu dibandingkan dengan S3 (<b>{kpi.sasaran3.toFixed(1)}</b>)
+                                        </span>
+                                      </div>
+
+                                      {/* 2. Status Pencapaian */}
+                                      <div className="space-y-1">
+                                        <label className="block text-[10px] uppercase font-bold text-slate-700">
+                                          STATUS PENCAPAIAN (Long Text) *
+                                        </label>
+                                        <textarea
+                                          rows={2}
+                                          required
+                                          placeholder="Tulis status kemajuan semasa, isu, atau ringkasan tindakan..."
+                                          value={achInputStatus}
+                                          onChange={(e) => setAchInputStatus(e.target.value)}
+                                          onBlur={() => setAchInputStatus(handleCapitalizeEachWord(achInputStatus))}
+                                          className="w-full text-xs border border-slate-300 rounded-xl px-2.5 py-1.5 bg-white focus:outline-none focus:border-rose-500 font-medium"
+                                        />
+                                      </div>
+
+                                      {/* 3. Dokumen Sokongan (File uploader, max 2MB, PDF/Image) */}
+                                      <div className="space-y-1">
+                                        <label className="block text-[10px] uppercase font-bold text-slate-700">
+                                          DOKUMEN SOKONGAN (PDF & IMAGE MAKS 2MB)
+                                        </label>
+                                        
+                                        <div className="flex items-center space-x-2 pt-1">
+                                          <label className="bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 text-xs font-bold px-3 py-1.5 rounded-lg flex items-center space-x-1 cursor-pointer transition-colors shadow-xs">
+                                            <Upload className="h-3 w-3 text-slate-500" />
+                                            <span>Pilih Fail</span>
+                                            <input
+                                              type="file"
+                                              accept=".pdf, .png, .jpg, .jpeg"
+                                              onChange={handleFileChange}
+                                              className="hidden"
+                                            />
+                                          </label>
+
+                                          {achInputFile && (
+                                            <button
+                                              type="button"
+                                              onClick={() => setAchInputFile(null)}
+                                              className="p-1 px-1.5 bg-rose-50 text-rose-600 rounded text-[9px] hover:bg-rose-100 font-bold transition-all"
+                                            >
+                                              Padam Fail
+                                            </button>
+                                          )}
+                                        </div>
+
+                                        {/* Selected file visualization */}
+                                        {achInputFile ? (
+                                          <div className="mt-2 bg-slate-100/80 rounded-lg p-2 flex items-center justify-between border border-slate-200">
+                                            <div className="flex items-center space-x-1.5 min-w-0">
+                                              <FileText className="h-4 w-4 text-red-500 flex-shrink-0" />
+                                              <div className="truncate text-[10px] font-semibold text-slate-800">
+                                                {achInputFile.name}
+                                              </div>
+                                            </div>
+                                            <span className="text-[9px] font-mono text-slate-400 flex-shrink-0 ml-2">
+                                              {(achInputFile.size / (1024 * 1024)).toFixed(2)} MB
+                                            </span>
+                                          </div>
+                                        ) : (
+                                          <span className="text-[9px] italic text-slate-400 block pt-1">Tiada fail dipautkan. Dokumen audit digalakkan.</span>
+                                        )}
+
+                                        {fileError && (
+                                          <span className="text-[9px] font-bold text-rose-500 leading-none pt-1 block">
+                                            {fileError}
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      {/* Action Buttons */}
+                                      <div className="flex justify-end space-x-2 pt-2 border-t border-slate-200">
+                                        <button
+                                          type="button"
+                                          onClick={() => setEditingAchievementKpiNo(null)}
+                                          className="bg-slate-200 hover:bg-slate-300 text-slate-800 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
+                                        >
+                                          Batal
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleSaveAchievement(kpi.noKpi)}
+                                          className="bg-rose-600 hover:bg-rose-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm"
+                                        >
+                                          Simpan
+                                        </button>
+                                      </div>
+
+                                      {/* Reactive Live Calculations preview */}
+                                      <div className="bg-white/80 p-3 rounded-lg border border-slate-200 text-xs space-y-1.5 mt-2">
+                                        <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest block">Kalkulator Pengisian Masa Nyata</span>
+                                        <div className="flex justify-between">
+                                          <span className="text-slate-500">% PENCAPAIAN:</span>
+                                          <span className="font-mono font-bold text-sky-800">
+                                            { Math.min(100.0, kpi.sasaran3 > 0 ? (achInputPencapaian / kpi.sasaran3) * 100 : 0).toFixed(1) }%
+                                          </span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                          <span className="text-slate-500">% PEMBERAT:</span>
+                                          <span className="font-mono font-bold text-slate-600">
+                                            { kpi.pemberat.toFixed(1) }%
+                                          </span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                          <span className="text-slate-500">% PENCAPAIAN SEBENAR:</span>
+                                          <span className="font-mono font-bold text-emerald-800">
+                                            { ((Math.min(100.0, kpi.sasaran3 > 0 ? (achInputPencapaian / kpi.sasaran3) * 100 : 0) * kpi.pemberat) / 100).toFixed(1) }%
+                                          </span>
+                                        </div>
+                                      </div>
+
+                                    </div>
+
+                                  </div>
+
+                                </div>
+                              </>
+                            )}
 
                           </div>
                         );
                       })}
+                    </div>
+
+                    {/* Action Footer with 2 Buttons */}
+                    <div className="p-5 border-t border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                      <div className="text-xs text-slate-500">
+                        Status bulan {selectedMonth}: <span className={`font-bold uppercase ${monthAchievementsGroup?.isEdited ? 'text-emerald-600' : 'text-slate-600'}`}>{monthAchievementsGroup?.isEdited ? 'TELAH DIKEMASKINI' : 'SEDIA DIKEMASKINI'}</span>
+                      </div>
+                      
+                      <div className="flex flex-wrap items-center justify-end gap-3 self-end sm:self-auto">
+                        {/* Button 1: Refresh & Recalculate */}
+                        <button
+                          id="btn_refresh_month_achievements"
+                          onClick={handleRefreshMonthAchievementsData}
+                          className="px-4 py-2.5 rounded-xl border border-sky-100 bg-sky-50/60 hover:bg-sky-100 text-sky-700 text-xs font-bold transition-all flex items-center space-x-2 shadow-xs cursor-pointer active:scale-98"
+                          title="Recalculate & synchronize achievements with any updated weights or target KPI values from the framework"
+                        >
+                          <RefreshCw className="h-3.5 w-3.5" />
+                          <span>SEGAR SEMULA DATA KPI</span>
+                        </button>
+
+                        {/* Button 2: HAS BEEN UPDATED Confirmation */}
+                        <button
+                          id="btn_confirm_month_updated"
+                          onClick={handleConfirmMonthUpdated}
+                          className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 shadow-sm cursor-pointer active:scale-98 ${
+                            monthAchievementsGroup?.isEdited
+                              ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/10'
+                              : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+                          }`}
+                        >
+                          <CheckCircle2 className="h-4 w-4" />
+                          <span>
+                            {monthAchievementsGroup?.isEdited ? 'TELAH DIKEMASKINI' : 'SAHKAN DIKEMASKINI'}
+                          </span>
+                        </button>
+                      </div>
                     </div>
 
                   </div>
@@ -3224,6 +3541,54 @@ export default function App() {
                     className="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold px-3 py-2 rounded-xl text-xs transition-all shadow-md shadow-sky-600/10"
                   >
                     Mula Set KPI
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Global Modal for Unlock Confirmation */}
+        {isUnlockModalOpen && (
+          <div 
+            style={{ zIndex: 99990 }}
+            className="fixed inset-0 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs transition-opacity duration-300"
+          >
+            <div className="bg-white rounded-2xl border border-slate-200 max-w-md w-full p-6 shadow-2xl relative">
+              <button 
+                onClick={() => setIsUnlockModalOpen(false)} 
+                className="absolute top-4 right-4 p-1 hover:bg-slate-100 rounded-full text-slate-400"
+              >
+                <X className="h-5 w-5" />
+              </button>
+
+              <div className="space-y-4 text-center">
+                <div className="bg-rose-50 text-rose-600 p-3 rounded-full w-12 h-12 mx-auto flex items-center justify-center">
+                  <Unlock className="h-6 w-6" />
+                </div>
+
+                <div className="space-y-2">
+                  <h4 className="text-base font-bold text-slate-900">Buka Kunci Kerangka KPI Tahun {selectedYear}?</h4>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Adakah anda pasti mahu membuka kunci Kerangka KPI bagi tahun ini? 
+                    Ini akan mengembalikan status ke mod <strong>DERAF (Sedia Diedit)</strong> di mana 
+                    anda dibenarkan meminda, menambah, atau memadam penunjuk KPI.
+                  </p>
+                </div>
+
+                <div className="flex space-x-2 pt-4">
+                  <button
+                    onClick={() => setIsUnlockModalOpen(false)}
+                    className="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-3 py-2 rounded-xl text-xs transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    id="btn_confirm_unlock"
+                    onClick={handleUnlockKerangka}
+                    className="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold px-3 py-2 rounded-xl text-xs transition-all shadow-md shadow-rose-600/10"
+                  >
+                    Teruskan / Unlock
                   </button>
                 </div>
               </div>

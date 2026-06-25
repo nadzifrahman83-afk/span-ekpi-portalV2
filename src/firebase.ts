@@ -1,13 +1,15 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously } from 'firebase/auth';
-import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
+import { initializeFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
-// Resolve with specific database ID configured in the applet config
-export const db = getFirestore(app, (firebaseConfig as any).firestoreDatabaseId || 'ai-studio-8dc69621-8190-4cd0-856c-d4a209a0d1df');
+// Resolve with specific database ID configured in the applet config and enforce HTTP Long Polling for sandboxed environments
+export const db = initializeFirestore(app, {
+  experimentalForceLongPolling: true,
+}, (firebaseConfig as any).firestoreDatabaseId || 'ai-studio-8dc69621-8190-4cd0-856c-d4a209a0d1df');
 export const auth = getAuth(app);
 
 // Sign in anonymously if enabled, or fallback gracefully to public access mode
