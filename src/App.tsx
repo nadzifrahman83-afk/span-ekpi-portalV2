@@ -1077,6 +1077,1533 @@ export default function App() {
     return 'text-[#ff3366]'; // Lemah (Rose Pink)
   };
 
+  // Export PDF template in a new window
+  const handleExportPdf = () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      showToast('Penyekat tetingkap timbul dikesan! Sila benarkan tetingkap timbul untuk mengeksport PDF.', 'error');
+      return;
+    }
+
+    const kpiList = currentYearData.kpis;
+    const year = selectedYear;
+
+    const translateMonthToMalay = (monthStr: string): string => {
+      const monthsMap: Record<string, string> = {
+        'January': 'JANUARY',
+        'February': 'FEBRUARY',
+        'March': 'MARCH',
+        'April': 'APRIL',
+        'May': 'MAY',
+        'June': 'JUNE',
+        'July': 'JULY',
+        'August': 'AUGUST',
+        'September': 'SEPTEMBER',
+        'October': 'OCTOBER',
+        'November': 'NOVEMBER',
+        'December': 'DECEMBER'
+      };
+      return monthsMap[monthStr] || monthStr.toUpperCase();
+    };
+
+    const month = translateMonthToMalay(selectedMonth);
+
+    let tableRowsHtml = '';
+
+    kpiList.forEach((item) => {
+      const ach = monthAchievementsGroup?.achievements[item.noKpi] || {
+        pencapaian: 0.0,
+        persenPencapaian: 0.0,
+        persenPemberat: item.pemberat,
+        persenPencapaianSebenar: 0.0,
+        statusPencapaian: 'Belum Dilaksanakan',
+        dokumenSokongan: null
+      };
+
+      tableRowsHtml += `
+        <tr>
+          <td class="text-center font-bold" style="color: #004a8d;">${item.noKpi}</td>
+          <td>${item.komponen}</td>
+          <td class="text-center">${item.noSsp}</td>
+          <td>${item.bidangUtama}</td>
+          <td>${item.objektif}</td>
+          <td>${item.inisiatif || '-'}</td>
+          <td>${item.pengukuran || '-'}</td>
+          <td>${item.statusPencapaianTahunSebelum || '-'}</td>
+          <td class="text-center font-bold">${ach.pencapaian.toFixed(1)}</td>
+          <td class="text-center font-bold">${item.sasaran3.toLocaleString()}</td>
+          <td class="text-center font-bold">${ach.persenPencapaian.toFixed(1)}%</td>
+          <td class="text-center font-bold">${item.pemberat.toFixed(1)}%</td>
+          <td class="text-center font-bold">${ach.persenPencapaianSebenar.toFixed(1)}%</td>
+          <td class="text-center font-bold">${item.sasaranAkhir.toFixed(1)}%</td>
+          <td class="text-center font-bold" style="color: ${
+            ach.statusPencapaian === 'Tiada Pengisian' || ach.statusPencapaian === 'Belum Dilaksanakan'
+              ? '#64748b'
+              : '#166534'
+          };">${ach.statusPencapaian}</td>
+        </tr>
+      `;
+    });
+
+    if (kpiList.length === 0) {
+      tableRowsHtml = `
+        <tr>
+          <td colspan="15" class="text-center font-bold" style="padding: 30px; color: #64748b;">Tiada KPI ditemui untuk dicetak.</td>
+        </tr>
+      `;
+    }
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>PENCAPAIAN KPI SPAN - ${month} ${year}</title>
+        <style>
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+          @page {
+            size: landscape;
+            margin: 6mm;
+          }
+          body {
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 20px;
+            color: #004a8d;
+            background-color: #fff;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          .no-print-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: #f8fafc;
+            border: 1px solid #005fb5;
+            padding: 12px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+          }
+          .no-print-text {
+            font-size: 12px;
+            font-weight: 600;
+            color: #004a8d;
+          }
+          .no-print-btn {
+            background-color: #005fb5;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            font-size: 11px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 2px 4px rgba(0, 95, 181, 0.2);
+            transition: all 0.15s;
+          }
+          .no-print-btn:hover {
+            background-color: #004a8d;
+          }
+          @media print {
+            .no-print-bar {
+              display: none !important;
+            }
+            body {
+              padding: 0;
+            }
+          }
+          .title-container {
+            text-align: center;
+            margin-bottom: 25px;
+            line-height: 1.4;
+          }
+          .title-primary {
+            font-size: 15px;
+            font-weight: 800;
+            color: #005fb5;
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+          .title-secondary {
+            font-size: 14px;
+            font-weight: 800;
+            color: #005fb5;
+            margin: 4px 0 0 0;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 8px;
+            table-layout: fixed;
+          }
+          th, td {
+            border: 1px solid #005fb5;
+            padding: 8px 5px;
+            vertical-align: middle;
+            word-wrap: break-word;
+            word-break: break-word;
+          }
+          th {
+            background-color: #fff;
+            color: #005fb5;
+            font-weight: 800;
+            text-align: center;
+            font-size: 8px;
+            line-height: 1.2;
+          }
+          td {
+            color: #004a8d;
+            font-weight: 500;
+          }
+          .text-center {
+            text-align: center;
+          }
+          .text-right {
+            text-align: right;
+          }
+          .font-bold {
+            font-weight: 700;
+          }
+          .tfoot-row td {
+            font-weight: 800;
+            font-size: 8.5px;
+            color: #005fb5;
+            padding: 10px 5px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="no-print-bar">
+          <span class="no-print-text">Laporan Penunjuk Prestasi Utama (KPI) SPAN — Mod Cetakan & PDF</span>
+          <button class="no-print-btn" onclick="window.print()">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>
+            Cetak / Simpan PDF
+          </button>
+        </div>
+
+        <div class="title-container">
+          <div class="title-primary">PENCAPAIAN PETUNJUK PRESTASI UTAMA (KPI) ${month} ${year}</div>
+          <div class="title-secondary">SURUHANJAYA PERKHIDMATAN AIR NEGARA</div>
+        </div>
+
+        <table>
+          <colgroup>
+            <col style="width: 3%">
+            <col style="width: 4.5%">
+            <col style="width: 4%">
+            <col style="width: 4.5%">
+            <col style="width: 11%">
+            <col style="width: 9%">
+            <col style="width: 9%">
+            <col style="width: 9%">
+            <col style="width: 3.5%">
+            <col style="width: 3.5%">
+            <col style="width: 4.5%">
+            <col style="width: 4.5%">
+            <col style="width: 4.5%">
+            <col style="width: 4.5%">
+            <col style="width: 20.5%">
+          </colgroup>
+          <thead>
+            <tr>
+              <th>NO. KPI</th>
+              <th>KOMPONEN</th>
+              <th>TERAS SSP2030</th>
+              <th>BIDANG UTAMA</th>
+              <th>OBJEKTIF</th>
+              <th>INISIATIF</th>
+              <th>PENGUKURAN</th>
+              <th>STATUS PENCAPAIAN TAHUN SEBELUMNYA</th>
+              <th>PENCAPAIAN</th>
+              <th>SASARAN</th>
+              <th>% PENCAPAIAN</th>
+              <th>% PEMBERAT</th>
+              <th>% PENCAPAIAN SEBENAR</th>
+              <th>% SASARAN AKHIR</th>
+              <th>STATUS PENCAPAIAN</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${tableRowsHtml}
+          </tbody>
+          ${kpiList.length > 0 ? `
+          <tfoot>
+            <tr class="tfoot-row">
+              <td colspan="10" class="text-right" style="font-weight: 800; font-size: 9px; letter-spacing: 0.5px; padding-right: 15px;">JUMLAH KESELURUHAN</td>
+              <td></td>
+              <td class="text-center">${totalPemberat.toFixed(1)}%</td>
+              <td class="text-center">${totalWeightedProgress.toFixed(1)}%</td>
+              <td class="text-center">${purataSasaranAkhir.toFixed(1)}%</td>
+              <td></td>
+            </tr>
+          </tfoot>
+          ` : ''}
+        </table>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+  };
+
+  // Export PDF Kerangka Strategik KPI in a new window
+  const handleExportKerangkaPdf = () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      showToast('Penyekat tetingkap timbul dikesan! Sila benarkan tetingkap timbul untuk mengeksport PDF.', 'error');
+      return;
+    }
+
+    const kpiList = currentYearData.kpis;
+    const year = selectedYear;
+
+    let tableRowsHtml = '';
+
+    kpiList.forEach((item) => {
+      tableRowsHtml += `
+        <tr>
+          <td class="text-center font-bold" style="color: #004a8d;">${item.noKpi}</td>
+          <td>${item.komponen}</td>
+          <td class="text-center">${item.noSsp}</td>
+          <td>${item.bidangUtama}</td>
+          <td>${item.objektif}</td>
+          <td>${item.inisiatif || '-'}</td>
+          <td>${item.pengukuran || '-'}</td>
+          <td>${item.kpi}</td>
+          <td>${item.statusPencapaianTahunSebelum || '-'}</td>
+          <td class="text-center font-bold">${item.sasaran1.toFixed(1)}</td>
+          <td class="text-center font-bold">${item.sasaran2.toFixed(1)}</td>
+          <td class="text-center font-bold">${item.sasaran3.toFixed(1)}</td>
+          <td>${item.justifikasiSasaran3 || '-'}</td>
+          <td class="text-center font-bold">${item.sasaran4.toFixed(1)}</td>
+          <td class="text-center font-bold">${item.sasaranAkhir.toFixed(1)}%</td>
+          <td class="text-center font-bold">${item.pemberat.toFixed(1)}%</td>
+        </tr>
+      `;
+    });
+
+    if (kpiList.length === 0) {
+      tableRowsHtml = `
+        <tr>
+          <td colspan="16" class="text-center font-bold" style="padding: 30px; color: #64748b;">Tiada KPI ditemui untuk dicetak.</td>
+        </tr>
+      `;
+    }
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>KERANGKA STRATEGIK & SCORE CARD KPI TAHUN ${year}</title>
+        <style>
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+          @page {
+            size: landscape;
+            margin: 6mm;
+          }
+          body {
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 20px;
+            color: #004a8d;
+            background-color: #fff;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          .no-print-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: #f8fafc;
+            border: 1px solid #005fb5;
+            padding: 12px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+          }
+          .no-print-text {
+            font-size: 12px;
+            font-weight: 600;
+            color: #004a8d;
+          }
+          .no-print-btn {
+            background-color: #005fb5;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            font-size: 11px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 2px 4px rgba(0, 95, 181, 0.2);
+            transition: all 0.15s;
+          }
+          .no-print-btn:hover {
+            background-color: #004a8d;
+          }
+          @media print {
+            .no-print-bar {
+              display: none !important;
+            }
+            body {
+              padding: 0;
+            }
+          }
+          .title-container {
+            text-align: center;
+            margin-bottom: 25px;
+            line-height: 1.4;
+          }
+          .title-primary {
+            font-size: 15px;
+            font-weight: 800;
+            color: #005fb5;
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+          .title-secondary {
+            font-size: 14px;
+            font-weight: 800;
+            color: #005fb5;
+            margin: 4px 0 0 0;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 8px;
+            table-layout: fixed;
+          }
+          th, td {
+            border: 1px solid #005fb5;
+            padding: 8px 5px;
+            vertical-align: middle;
+            word-wrap: break-word;
+            word-break: break-word;
+          }
+          th {
+            background-color: #fff;
+            color: #005fb5;
+            font-weight: 800;
+            text-align: center;
+            font-size: 8px;
+            line-height: 1.2;
+          }
+          td {
+            color: #004a8d;
+            font-weight: 500;
+          }
+          .text-center {
+            text-align: center;
+          }
+          .text-right {
+            text-align: right;
+          }
+          .font-bold {
+            font-weight: 700;
+          }
+          .tfoot-row td {
+            font-weight: 800;
+            font-size: 8.5px;
+            color: #005fb5;
+            padding: 10px 5px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="no-print-bar">
+          <span class="no-print-text">Laporan Kerangka Strategik KPI SPAN — Mod Cetakan & PDF</span>
+          <button class="no-print-btn" onclick="window.print()">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>
+            Cetak / Simpan PDF
+          </button>
+        </div>
+
+        <div class="title-container">
+          <div class="title-primary">KERANGKA STRATEGIK & SCORE CARD KPI TAHUN ${year}</div>
+          <div class="title-secondary">SURUHANJAYA PERKHIDMATAN AIR NEGARA</div>
+        </div>
+
+        <table>
+          <colgroup>
+            <col style="width: 3%">
+            <col style="width: 5%">
+            <col style="width: 4.5%">
+            <col style="width: 6%">
+            <col style="width: 10%">
+            <col style="width: 9%">
+            <col style="width: 9%">
+            <col style="width: 11%">
+            <col style="width: 9%">
+            <col style="width: 3.5%">
+            <col style="width: 3.5%">
+            <col style="width: 3.5%">
+            <col style="width: 8%">
+            <col style="width: 3.5%">
+            <col style="width: 5.5%">
+            <col style="width: 6%">
+          </colgroup>
+          <thead>
+            <tr>
+              <th>NO. KPI</th>
+              <th>KOMPONEN</th>
+              <th>TERAS SSP2030</th>
+              <th>BIDANG UTAMA</th>
+              <th>OBJEKTIF</th>
+              <th>INISIATIF</th>
+              <th>PENGUKURAN</th>
+              <th>PENUNJUK PRESTASI UTAMA (KPI)</th>
+              <th>STATUS PENCAPAIAN TAHUN SEBELUM</th>
+              <th>SASARAN 1</th>
+              <th>SASARAN 2</th>
+              <th>SASARAN 3</th>
+              <th>JUSTIFIKASI SASARAN 3</th>
+              <th>SASARAN 4</th>
+              <th>SASARAN AKHIR</th>
+              <th>% PEMBERAT</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${tableRowsHtml}
+          </tbody>
+          ${kpiList.length > 0 ? `
+          <tfoot>
+            <tr class="tfoot-row">
+              <td colspan="14" class="text-right" style="font-weight: 800; font-size: 9px; letter-spacing: 0.5px; padding-right: 15px;">JUMLAH KESELURUHAN</td>
+              <td class="text-center">${purataSasaranAkhir.toFixed(1)}%</td>
+              <td class="text-center">${totalPemberat.toFixed(1)}%</td>
+            </tr>
+          </tfoot>
+          ` : ''}
+        </table>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+  };
+
+  // Export PDF Dashboard Prestasi Semasa KPI
+  const handleExportDashboardPdf = () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      showToast('Penyekat tetingkap timbul dikesan! Sila benarkan tetingkap timbul untuk mengeksport PDF.', 'error');
+      return;
+    }
+
+    const year = selectedYear;
+    const translateMonthToMalay = (monthStr: string): string => {
+      const monthsMap: Record<string, string> = {
+        'January': 'JAN',
+        'February': 'FEB',
+        'March': 'MAC',
+        'April': 'APR',
+        'May': 'MEI',
+        'June': 'JUN',
+        'July': 'JUL',
+        'August': 'OGOS',
+        'September': 'SEPT',
+        'October': 'OKT',
+        'November': 'NOV',
+        'December': 'DIS'
+      };
+      return monthsMap[monthStr] || monthStr.toUpperCase();
+    };
+
+    const getShortEnglishMonth = (monthStr: string): string => {
+      const monthsMap: Record<string, string> = {
+        'January': 'JAN',
+        'February': 'FEB',
+        'March': 'MAR',
+        'April': 'APR',
+        'May': 'MAY',
+        'June': 'JUN',
+        'July': 'JUL',
+        'August': 'AUG',
+        'September': 'SEP',
+        'October': 'OCT',
+        'November': 'NOV',
+        'December': 'DEC'
+      };
+      return monthsMap[monthStr] || monthStr.substring(0, 3).toUpperCase();
+    };
+
+    const monthAbbr = translateMonthToMalay(selectedMonth);
+
+    // Compute average Sasaran Akhir
+    const averageSasaranAkhir = currentYearData.kpis.length > 0
+      ? Number((currentYearData.kpis.reduce((sum, kpi) => sum + kpi.sasaranAkhir, 0) / currentYearData.kpis.length).toFixed(1))
+      : 0.0;
+
+    // Get current month achievements
+    const mAchGroup = currentYearData.monthlyAchievements[selectedMonth];
+
+    // Compute overall weighted achievement for current month
+    const overallProgress = currentYearData.kpis.length > 0 && mAchGroup
+      ? (() => {
+          const sumVal = currentYearData.kpis.reduce((sum, kpi) => {
+            const ach = mAchGroup.achievements[kpi.noKpi];
+            return sum + (ach ? ach.persenPencapaianSebenar : 0);
+          }, 0);
+          return Math.floor(sumVal * 10) / 10;
+        })()
+      : 0.0;
+
+    // Compute previous month weighted achievement for trend
+    const currMonthIdx = MONTHS_LIST.indexOf(selectedMonth);
+    const prevMonth = currMonthIdx > 0 ? MONTHS_LIST[currMonthIdx - 1] : null;
+    const prevMonthGroup = prevMonth ? currentYearData.monthlyAchievements[prevMonth] : null;
+    
+    const prevOverallProgress = prevMonthGroup && currentYearData.kpis.length > 0
+      ? (() => {
+          const sumVal = currentYearData.kpis.reduce((sum, kpi) => {
+            const ach = prevMonthGroup.achievements[kpi.noKpi];
+            return sum + (ach ? ach.persenPencapaianSebenar : 0);
+          }, 0);
+          return Math.floor(sumVal * 10) / 10;
+        })()
+      : 0.0;
+
+    const trendGap = Number((overallProgress - prevOverallProgress).toFixed(1));
+
+    // Compute KPI grades
+    const gradesCount = {
+      cemerlang: 0,
+      mencapai: 0,
+      memuaskan: 0,
+      lemah: 0
+    };
+
+    currentYearData.kpis.forEach(kpi => {
+      const ach = mAchGroup?.achievements[kpi.noKpi];
+      const pct = ach ? ach.persenPencapaian : 0;
+      if (pct >= 91.0) {
+        gradesCount.cemerlang++;
+      } else if (pct >= 71.0) {
+        gradesCount.mencapai++;
+      } else if (pct >= 21.0) {
+        gradesCount.memuaskan++;
+      } else {
+        gradesCount.lemah++;
+      }
+    });
+
+    // Compute doughnut segments
+    const totalPemberatSum = currentYearData.kpis.reduce((sum, item) => sum + item.pemberat, 0) || 100;
+    let cumPercent = 0;
+    const doughnutColors = [
+      '#0284c7', '#0ea5e9', '#38bdf8', '#0d9488', '#14b8a6', '#22d3ee', '#4338ca', '#6366f1'
+    ];
+    let doughnutSegmentsHtml = '';
+    
+    currentYearData.kpis.forEach((kpi, idx) => {
+      const val = kpi.pemberat;
+      const start = cumPercent;
+      cumPercent += val;
+
+      const r = 95;
+      const circ = 2 * Math.PI * r;
+      const length = (val / totalPemberatSum) * circ;
+      const offset = - (start / totalPemberatSum) * circ;
+      const color = doughnutColors[idx % doughnutColors.length];
+
+      // Leader line angles
+      const segmentAngle = (val / totalPemberatSum) * 360;
+      const midAngleDeg = (start / totalPemberatSum) * 360 + segmentAngle / 2 - 90;
+      const angleRad = (midAngleDeg * Math.PI) / 180;
+      
+      const x1 = 220 + 120 * Math.cos(angleRad);
+      const y1 = 220 + 120 * Math.sin(angleRad);
+      
+      const x2 = 220 + 155 * Math.cos(angleRad);
+      const y2 = 220 + 155 * Math.sin(angleRad);
+      
+      const isLeft = x2 < 220;
+      const x3 = isLeft ? x2 - 12 : x2 + 12;
+      const y3 = y2;
+
+      doughnutSegmentsHtml += `
+        <circle 
+          cx="220" 
+          cy="220" 
+          r="${r}" 
+          fill="none" 
+          stroke="${color}" 
+          stroke-width="50" 
+          stroke-dasharray="${length} ${circ}" 
+          stroke-dashoffset="${offset}"
+        />
+        <path 
+          d="M ${x1} ${y1} L ${x2} ${y2} L ${x3} ${y3}"
+          fill="none"
+          stroke="#cbd5e1"
+          stroke-width="1"
+        />
+        <circle 
+          cx="${x1}" 
+          cy="${y1}" 
+          r="2.5" 
+          fill="${color}" 
+        />
+        <text 
+          x="${x3 + (isLeft ? -4 : 4)}"
+          y="${y3 + 3}"
+          text-anchor="${isLeft ? 'end' : 'start'}"
+          fill="#475569"
+          style="font-size: 8px; font-weight: 800; font-family: 'Inter', sans-serif;"
+        >
+          ${kpi.noKpi}, ${(val / totalPemberatSum * 100).toFixed(1)}%
+        </text>
+      `;
+    });
+
+    // Compute line chart for monthly trend
+    const monthlyData = MONTHS_LIST.map((m) => {
+      const group = currentYearData.monthlyAchievements[m];
+      const avgValue = currentYearData.kpis.length > 0 && group
+        ? Number((currentYearData.kpis.reduce((sum, kpi) => {
+            const ach = group.achievements[kpi.noKpi];
+            return sum + (ach ? ach.persenPencapaian : 0);
+          }, 0) / currentYearData.kpis.length).toFixed(1))
+        : 0.0;
+      return { month: m, value: avgValue };
+    });
+
+    const w = 750;
+    const h = 210;
+    const ml = 45;
+    const mr = 120;
+    const mt = 20;
+    const mb = 30;
+    const effW = w - ml - mr;
+    const effH = h - mt - mb;
+
+    const getLineX = (idx: number) => ml + (idx * effW) / 11;
+    const getLineY = (val: number) => mt + effH - Math.min(effH, Math.max(0, (val / 100) * effH));
+
+    const linePoints = monthlyData.map((d, i) => ({ x: getLineX(i), y: getLineY(d.value) }));
+    
+    let trendPathD = '';
+    if (linePoints.length > 0) {
+      trendPathD = `M ${linePoints[0].x} ${linePoints[0].y}`;
+      for (let i = 0; i < linePoints.length - 1; i++) {
+        const p0 = linePoints[i];
+        const p1 = linePoints[i + 1];
+        const cp1x = p0.x + (p1.x - p0.x) / 3;
+        const cp1y = p0.y;
+        const cp2x = p0.x + 2 * (p1.x - p0.x) / 3;
+        const cp2y = p1.y;
+        trendPathD += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p1.x} ${p1.y}`;
+      }
+    }
+    const trendAreaD = linePoints.length > 0 
+      ? `${trendPathD} L ${linePoints[linePoints.length - 1].x} ${getLineY(0)} L ${linePoints[0].x} ${getLineY(0)} Z` 
+      : '';
+
+    let trendMonthLabelsHtml = '';
+    monthlyData.forEach((d, idx) => {
+      const isCurr = d.month === selectedMonth;
+      trendMonthLabelsHtml += `
+        <text 
+          x="${getLineX(idx)}" 
+          y="${h - 8}" 
+          text-anchor="middle" 
+          style="font-size: 7.5px; font-weight: 700; font-family: monospace; fill: ${isCurr ? '#004a8d' : '#94a3b8'};"
+        >
+          ${getShortEnglishMonth(d.month)}
+        </text>
+      `;
+    });
+
+    let trendPointsHtml = '';
+    monthlyData.forEach((d, idx) => {
+      const isCurr = d.month === selectedMonth;
+      trendPointsHtml += `
+        <circle 
+          cx="${getLineX(idx)}" 
+          cy="${getLineY(d.value)}" 
+          r="${isCurr ? '5.5' : '3'}" 
+          fill="${isCurr ? '#005fb5' : 'white'}"
+          stroke="#004a8d"
+          stroke-width="1.5"
+        />
+        <text 
+          x="${getLineX(idx)}" 
+          y="${getLineY(d.value) - (isCurr ? 8 : 5)}" 
+          text-anchor="middle" 
+          style="font-size: 7.5px; font-weight: 800; font-family: monospace; fill: #004a8d;"
+        >
+          ${d.value.toFixed(0)}%
+        </text>
+      `;
+    });
+
+    // Compute bar chart for KPI achievements
+    const w_bar = 750;
+    const h_bar = 210;
+    const ml_bar = 45;
+    const mr_bar = 20;
+    const mt_bar = 20;
+    const mb_bar = 30;
+    const effW_bar = w_bar - ml_bar - mr_bar;
+    const effH_bar = h_bar - mt_bar - mb_bar;
+
+    const kpisCount = currentYearData.kpis.length;
+    const barSpacing = kpisCount > 0 ? (effW_bar / kpisCount) : effW_bar;
+    const barWidth = Math.min(26, barSpacing * 0.55);
+
+    let barChartElementsHtml = '';
+    currentYearData.kpis.forEach((kpi, idx) => {
+      const ach = mAchGroup?.achievements[kpi.noKpi] || {
+        pencapaian: 0.0,
+        persenPencapaian: 0.0,
+        persenPemberat: kpi.pemberat,
+      };
+
+      const pct = Math.min(100, Math.max(0, ach.persenPencapaian));
+      const barH = (pct / 100) * effH_bar;
+      const barX = ml_bar + (idx * barSpacing) + (barSpacing - barWidth) / 2;
+      const barY = mt_bar + effH_bar - barH;
+
+      const targetPercent = Math.min(100, Math.max(0, kpi.sasaranAkhir));
+      const targetY = mt_bar + effH_bar - (targetPercent / 100) * effH_bar;
+
+      const barColor = 
+        pct >= 90 ? '#10b981' : // emerald-500
+        pct >= 76 ? '#3b82f6' : // blue-500
+        pct >= 41 ? '#f59e0b' : // amber-500
+        '#f43f5e';             // rose-500
+
+      barChartElementsHtml += `
+        <!-- Background container bar -->
+        <rect 
+          x="${barX - 2}" 
+          y="${mt_bar}" 
+          width="${barWidth + 4}" 
+          height="${effH_bar}" 
+          fill="#f8fafc" 
+          rx="4" 
+        />
+        <!-- Bar -->
+        <rect 
+          x="${barX}" 
+          y="${barY}" 
+          width="${barWidth}" 
+          height="${barH}" 
+          fill="${barColor}"
+          rx="3" 
+        />
+        <!-- Target red guideline -->
+        <line 
+          x1="${barX - 4}" 
+          y1="${targetY}" 
+          x2="${barX + barWidth + 4}" 
+          y2="${targetY}" 
+          stroke="#f43f5e" 
+          stroke-width="1" 
+          stroke-dasharray="2 1"
+        />
+        <!-- Target badge -->
+        <rect
+          x="${barX + barWidth / 2 - 13}"
+          y="${targetY - 9}"
+          width="26"
+          height="8"
+          rx="1"
+          fill="#fff1f2"
+          stroke="#fda4af"
+          stroke-width="0.5"
+        />
+        <text
+          x="${barX + barWidth / 2}"
+          y="${targetY - 3}"
+          text-anchor="middle"
+          style="font-size: 6px; font-weight: 800; font-family: monospace; fill: #e11d48;"
+        >
+          ${kpi.sasaranAkhir.toFixed(0)}%
+        </text>
+        <!-- Bar value text -->
+        <text 
+          x="${barX + barWidth / 2}" 
+          y="${pct > 15 ? mt_bar + effH_bar - 4 : barY - 4}" 
+          text-anchor="middle" 
+          style="font-size: 8px; font-weight: 800; font-family: monospace; fill: ${pct > 15 ? 'white' : '#1e293b'};"
+        >
+          ${ach.persenPencapaian.toFixed(0)}%
+        </text>
+        <!-- KPI label at bottom -->
+        <text 
+          x="${barX + barWidth / 2}" 
+          y="${mt_bar + effH_bar + 12}" 
+          text-anchor="middle" 
+          style="font-size: 8px; font-weight: 800; font-family: monospace; fill: #004a8d;"
+        >
+          ${kpi.noKpi}
+        </text>
+      `;
+    });
+
+    // Compute KPI cards grid
+    let kpiCardsHtml = '';
+    currentYearData.kpis.forEach((kpi) => {
+      const ach = mAchGroup?.achievements[kpi.noKpi] || {
+        pencapaian: 0.0,
+        persenPencapaian: 0.0,
+        persenPemberat: kpi.pemberat,
+      };
+
+      const pct = ach.persenPencapaian;
+      const cleanText = kpi.kpi.trim().toUpperCase();
+
+      const strokeColorClass = 
+        pct >= 90 ? '#10b981' :
+        pct >= 76 ? '#3b82f6' :
+        pct >= 41 ? '#f59e0b' :
+        '#f43f5e';
+
+      const formattedNoKpi = kpi.noKpi.toUpperCase().includes('KPI') ? kpi.noKpi.toUpperCase() : `KPI ${kpi.noKpi}`;
+
+      kpiCardsHtml += `
+        <div class="right-kpi-card" style="border-color: ${strokeColorClass};">
+          <div class="right-kpi-no-badge-container">
+            <span class="right-kpi-no-badge">${formattedNoKpi}</span>
+          </div>
+          <div class="right-kpi-title" title="${kpi.kpi}">${cleanText}</div>
+          <div class="right-kpi-pct" style="color: ${strokeColorClass};">${pct.toFixed(1)}%</div>
+        </div>
+      `;
+    });
+
+    const prevMonthName = prevMonth || 'December';
+    const prevMonthAbbr = translateMonthToMalay(prevMonthName);
+
+    // Render HTML content
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html lang="ms">
+      <head>
+        <meta charset="UTF-8">
+        <title>Dashboard Prestasi KPI SPAN</title>
+        <style>
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+          
+          @media print {
+            @page {
+              size: A4 landscape;
+              margin: 0.5cm;
+            }
+            body {
+              background-color: white !important;
+              padding: 0 !important;
+              margin: 0 !important;
+            }
+            .no-print {
+              display: none !important;
+            }
+          }
+
+          body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #f8fafc;
+            margin: 0;
+            padding: 16px;
+            color: #0f172a;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+
+          .dashboard-container {
+            width: 1120px;
+            margin: 0 auto;
+            box-sizing: border-box;
+          }
+
+          .header {
+            text-align: center;
+            margin-bottom: 20px;
+          }
+          .header h1 {
+            font-size: 19px;
+            font-weight: 900;
+            margin: 0;
+            color: #0f172a;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+          }
+          .header h2 {
+            font-size: 12px;
+            font-weight: 700;
+            margin: 4px 0 0 0;
+            color: #475569;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+
+          /* Top cards row */
+          .top-row-container {
+            display: grid;
+            grid-template-columns: 320px 190px 1fr;
+            gap: 16px;
+            margin-bottom: 16px;
+          }
+          .top-col {
+            display: flex;
+            flex-direction: column;
+          }
+          .top-col-title {
+            font-size: 8px;
+            font-weight: 800;
+            color: #64748b;
+            font-style: italic;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+          
+          .card-pencapaian {
+            background: white;
+            border: 1.5px solid #cbd5e1;
+            border-radius: 12px;
+            height: 124px;
+            display: flex;
+            overflow: hidden;
+            box-sizing: border-box;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+          }
+          .pencapaian-left {
+            background: #ffb300; /* vibrant amber/yellow */
+            color: white;
+            font-size: 54px;
+            font-weight: 900;
+            width: 65%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+          .pencapaian-right {
+            width: 35%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 4px;
+            background-color: white;
+            box-sizing: border-box;
+          }
+          .pencapaian-trend {
+            font-size: 14px;
+            font-weight: 800;
+            color: #0f172a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+          .pencapaian-prev-val {
+            font-size: 26px;
+            font-weight: 800;
+            color: #0f172a;
+            line-height: 1;
+          }
+          .pencapaian-prev-lbl {
+            font-size: 6.5px;
+            font-weight: 800;
+            color: #64748b;
+            text-align: center;
+            line-height: 1.2;
+            text-transform: uppercase;
+          }
+
+          .card-sasaran {
+            background: #10b981; /* emerald-500 */
+            color: white;
+            font-size: 46px;
+            font-weight: 900;
+            height: 124px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1.5px solid #10b981;
+            box-sizing: border-box;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+          }
+
+          .top-gred-card {
+            background: white;
+            border: 1.5px solid #cbd5e1;
+            border-radius: 12px;
+            padding: 12px 14px;
+            height: 124px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+          }
+          .gred-blocks-wrapper {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+          }
+          .gred-column {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+          }
+          .gred-block-card {
+            width: 100%;
+            height: 70px;
+            border-radius: 10px;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 4px;
+            box-sizing: border-box;
+          }
+          .gred-lemah {
+            background: #f43f5e; /* rose-500 */
+          }
+          .gred-memuaskan {
+            background: #ffb300; /* amber-500 */
+          }
+          .gred-mencapai {
+            background: #0091ff; /* blue-500 */
+          }
+          .gred-cemerlang {
+            background: #10b981; /* emerald-500 */
+          }
+          .gred-range {
+            font-size: 8px;
+            font-weight: 800;
+          }
+          .gred-kpi-lbl {
+            font-size: 6.5px;
+            font-weight: 800;
+            opacity: 0.9;
+            margin-top: 2px;
+          }
+          .gred-num {
+            font-size: 26px;
+            font-weight: 900;
+            margin-top: 1px;
+            line-height: 1;
+          }
+          .gred-column-label {
+            font-size: 8.5px;
+            font-weight: 900;
+            margin-top: 6px;
+            font-style: italic;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+          .label-lemah {
+            color: #f43f5e;
+          }
+          .label-memuaskan {
+            color: #ffa000;
+          }
+          .label-mencapai {
+            color: #0091ff;
+          }
+          .label-cemerlang {
+            color: #10b981;
+          }
+
+          /* Two column main layout */
+          .main-body {
+            display: flex;
+            gap: 16px;
+            align-items: stretch;
+          }
+          .left-col {
+            width: 53%;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+          }
+          .right-col {
+            width: 47%;
+            display: flex;
+            gap: 16px;
+            align-items: stretch;
+          }
+          .right-sub-left {
+            width: 46%;
+            display: flex;
+            flex-direction: column;
+          }
+          .right-sub-right {
+            width: 54%;
+            display: flex;
+            flex-direction: column;
+          }
+
+          .chart-box {
+            background: white;
+            border: 1.5px solid #cbd5e1;
+            border-radius: 12px;
+            padding: 12px;
+            box-sizing: border-box;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+          }
+          .chart-header {
+            margin-bottom: 8px;
+          }
+          .chart-header h3 {
+            font-size: 11px;
+            font-weight: 800;
+            margin: 0;
+            color: #0f172a;
+          }
+          .chart-header p {
+            font-size: 8px;
+            margin: 2px 0 0 0;
+            color: #64748b;
+          }
+
+          .middle-card {
+            background: white;
+            border: 1.5px solid #cbd5e1;
+            border-radius: 12px;
+            padding: 16px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+          }
+          .middle-card-header {
+            margin-bottom: 24px;
+          }
+          .middle-card-header h3 {
+            font-size: 11px;
+            font-weight: 800;
+            margin: 0;
+            color: #0f172a;
+          }
+          .middle-card-header p {
+            font-size: 8px;
+            margin: 2px 0 0 0;
+            color: #64748b;
+            line-height: 1.2;
+          }
+          .pie-container {
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+
+          /* KPI cards grid & items */
+          .right-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+            align-content: start;
+          }
+          .right-kpi-card {
+            background: white;
+            border-radius: 12px;
+            border: 1.5px solid #cbd5e1;
+            padding: 6px 4px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            text-align: center;
+            width: calc((100% - 16px) / 3); /* exactly 3 columns, centers last row! */
+            height: 110px;
+            box-sizing: border-box;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+          }
+          .right-kpi-no-badge-container {
+            display: flex;
+            justify-content: center;
+            width: 100%;
+          }
+          .right-kpi-no-badge {
+            font-size: 7.5px;
+            font-weight: 800;
+            color: #475569;
+            background-color: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-radius: 99px;
+            padding: 2px 8px;
+            text-transform: uppercase;
+          }
+          .right-kpi-title {
+            font-size: 7px;
+            font-weight: 800;
+            color: #0f172a;
+            line-height: 1.15;
+            margin: 4px 0;
+            height: 38px;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-transform: uppercase;
+          }
+          .right-kpi-pct {
+            font-size: 11.5px;
+            font-weight: 900;
+          }
+
+          .print-btn-container {
+            text-align: center;
+            margin-bottom: 16px;
+          }
+          .print-btn {
+            background-color: #004a8d;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 12px;
+            font-weight: 700;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          }
+          .print-btn:hover {
+            background-color: #003c73;
+            transform: translateY(-1px);
+          }
+        </style>
+      </head>
+      <body>
+        <div class="print-btn-container no-print">
+          <button class="print-btn" onclick="window.print()">Cetak / Simpan PDF</button>
+        </div>
+
+        <div class="dashboard-container">
+          <div class="header">
+            <h1>PENCAPAIAN PETUNJUK PRESTASI UTAMA (KPI) &nbsp; ${selectedMonth.toUpperCase()} &nbsp; ${year}</h1>
+            <h2>SURUHANJAYA PERKHIDMATAN AIR NEGARA</h2>
+          </div>
+
+          <div class="top-row-container">
+            <!-- Card 1: Pencapaian Keseluruhan -->
+            <div class="top-col">
+              <div class="top-col-title">PENCAPAIAN KESELURUHAN</div>
+              <div class="card-pencapaian">
+                <div class="pencapaian-left">
+                  ${overallProgress.toFixed(1)}%
+                </div>
+                <div class="pencapaian-right">
+                  <div class="pencapaian-trend">
+                    <span style="color: ${trendGap > 0 ? '#10b981' : trendGap < 0 ? '#ef4444' : '#64748b'}; margin-right: 4px;">
+                      ${trendGap > 0 ? '▲' : trendGap < 0 ? '▼' : '─'}
+                    </span>
+                    <span>${Math.abs(trendGap).toFixed(1)}%</span>
+                  </div>
+                  <div class="pencapaian-prev-val">
+                    ${prevOverallProgress.toFixed(1)}%
+                  </div>
+                  <div class="pencapaian-prev-lbl">
+                    PENCAPAIAN BULAN<br>${prevMonthAbbr}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Card 2: Sasaran Akhir Keseluruhan -->
+            <div class="top-col">
+              <div class="top-col-title">SASARAN AKHIR KESELURUHAN</div>
+              <div class="card-sasaran">
+                ${averageSasaranAkhir.toFixed(1)}%
+              </div>
+            </div>
+
+            <!-- Card 3: Bilangan KPI Mengikut Gred Pencapaian -->
+            <div class="top-gred-card">
+              <div class="gred-blocks-wrapper">
+                <!-- Lemah -->
+                <div class="gred-column">
+                  <div class="gred-block-card gred-lemah">
+                    <div class="gred-range">0% - 20%</div>
+                    <div class="gred-kpi-lbl">BIL. KPI</div>
+                    <div class="gred-num">${gradesCount.lemah}</div>
+                  </div>
+                  <div class="gred-column-label label-lemah">LEMAH</div>
+                </div>
+
+                <!-- Memuaskan -->
+                <div class="gred-column">
+                  <div class="gred-block-card gred-memuaskan">
+                    <div class="gred-range">21% - 70%</div>
+                    <div class="gred-kpi-lbl">BIL. KPI</div>
+                    <div class="gred-num">${gradesCount.memuaskan}</div>
+                  </div>
+                  <div class="gred-column-label label-memuaskan">MEMUASKAN</div>
+                </div>
+
+                <!-- Mencapai -->
+                <div class="gred-column">
+                  <div class="gred-block-card gred-mencapai">
+                    <div class="gred-range">71% - 90%</div>
+                    <div class="gred-kpi-lbl">BIL. KPI</div>
+                    <div class="gred-num">${gradesCount.mencapai}</div>
+                  </div>
+                  <div class="gred-column-label label-mencapai">MENCAPAI</div>
+                </div>
+
+                <!-- Cemerlang -->
+                <div class="gred-column">
+                  <div class="gred-block-card gred-cemerlang">
+                    <div class="gred-range">91% - 100%</div>
+                    <div class="gred-kpi-lbl">BIL. KPI</div>
+                    <div class="gred-num">${gradesCount.cemerlang}</div>
+                  </div>
+                  <div class="gred-column-label label-cemerlang">CEMERLANG</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Two column main layout -->
+          <div class="main-body">
+            <!-- Left Column: Two charts stacked -->
+            <div class="left-col">
+              <!-- Chart 1: Trend line chart -->
+              <div class="chart-box">
+                <div class="chart-header">
+                  <h3>Trend Peratusan Pencapaian Bulanan (${year})</h3>
+                  <p>Merujuk kepada kedudukan purata pencapaian merentasi 4 zon band prestasi korporat.</p>
+                </div>
+                <div style="position: relative; width: 100%;">
+                  <svg viewBox="0 0 ${w} ${h}" width="100%" height="auto" style="display: block; overflow: visible;">
+                    <defs>
+                      <linearGradient id="print-sweeping-grad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stop-color="#004a8d" stop-opacity="0.25" />
+                        <stop offset="100%" stop-color="#004a8d" stop-opacity="0.0" />
+                      </linearGradient>
+                    </defs>
+
+                    <!-- Zone Bands background -->
+                    <rect x="${ml}" y="${getLineY(100)}" width="${effW}" height="${getLineY(90) - getLineY(100)}" fill="#22c55e" fill-opacity="0.05" />
+                    <line x1="${ml}" y1="${getLineY(90)}" x2="${ml + effW}" y2="${getLineY(90)}" stroke="#22c55e" stroke-dasharray="2 2" stroke-width="0.7" stroke-opacity="0.4" />
+                    <text x="${ml + effW + 8}" y="${getLineY(95)}" text-anchor="start" style="font-size: 7.5px; fill: #16a34a; font-weight: 800; font-family: sans-serif;">Cemerlang (&gt;90%)</text>
+
+                    <rect x="${ml}" y="${getLineY(90)}" width="${effW}" height="${getLineY(75) - getLineY(90)}" fill="#3b82f6" fill-opacity="0.05" />
+                    <line x1="${ml}" y1="${getLineY(75)}" x2="${ml + effW}" y2="${getLineY(75)}" stroke="#3b82f6" stroke-dasharray="2 2" stroke-width="0.7" stroke-opacity="0.4" />
+                    <text x="${ml + effW + 8}" y="${getLineY(83)}" text-anchor="start" style="font-size: 7.5px; fill: #2563eb; font-weight: 800; font-family: sans-serif;">Mencapai (76-90%)</text>
+
+                    <rect x="${ml}" y="${getLineY(75)}" width="${effW}" height="${getLineY(40) - getLineY(75)}" fill="#eab308" fill-opacity="0.05" />
+                    <line x1="${ml}" y1="${getLineY(40)}" x2="${ml + effW}" y2="${getLineY(40)}" stroke="#eab308" stroke-dasharray="2 2" stroke-width="0.7" stroke-opacity="0.4" />
+                    <text x="${ml + effW + 8}" y="${getLineY(58)}" text-anchor="start" style="font-size: 7.5px; fill: #ca8a04; font-weight: 800; font-family: sans-serif;">Memuaskan (41-75%)</text>
+
+                    <rect x="${ml}" y="${getLineY(40)}" width="${effW}" height="${getLineY(0) - getLineY(40)}" fill="#ef4444" fill-opacity="0.05" />
+                    <text x="${ml + effW + 8}" y="${getLineY(20)}" text-anchor="start" style="font-size: 7.5px; fill: #dc2626; font-weight: 800; font-family: sans-serif;">Lemah (&lt;=40%)</text>
+
+                    <!-- Axis Labels -->
+                    <text x="${ml - 6}" y="${getLineY(100) + 3}" text-anchor="end" style="font-size: 8px; fill: #94a3b8; font-weight: 700;">100</text>
+                    <text x="${ml - 6}" y="${getLineY(75) + 3}" text-anchor="end" style="font-size: 8px; fill: #94a3b8; font-weight: 700;">75</text>
+                    <text x="${ml - 6}" y="${getLineY(40) + 3}" text-anchor="end" style="font-size: 8px; fill: #94a3b8; font-weight: 700;">40</text>
+                    <text x="${ml - 6}" y="${getLineY(0) + 3}" text-anchor="end" style="font-size: 8px; fill: #94a3b8; font-weight: 700;">0</text>
+
+                    <!-- X Axis Months -->
+                    ${trendMonthLabelsHtml}
+
+                    <!-- Sweeping Shaded Area -->
+                    ${trendAreaD ? `<path d="${trendAreaD}" fill="url(#print-sweeping-grad)" />` : ''}
+
+                    <!-- Line -->
+                    ${trendPathD ? `<path d="${trendPathD}" fill="none" stroke="#004a8d" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />` : ''}
+
+                    <!-- Points -->
+                    ${trendPointsHtml}
+                  </svg>
+                </div>
+              </div>
+
+              <!-- Chart 2: Bar Chart -->
+              <div class="chart-box">
+                <div class="chart-header">
+                  <h3>Prestasi Pencapaian mengikut Penunjuk (KPI)</h3>
+                  <p>Memaparkan tahap pencapaian (%) semasa bagi setiap KPI berbanding sasaran pada bulan ${selectedMonth.toUpperCase()}.</p>
+                </div>
+                <div style="position: relative; width: 100%;">
+                  <svg viewBox="0 0 ${w_bar} ${h_bar}" width="100%" height="auto" style="display: block; overflow: visible;">
+                    <!-- Grid Lines -->
+                    <line x1="${ml_bar}" y1="${mt_bar}" x2="${ml_bar + effW_bar}" y2="${mt_bar}" stroke="#f1f5f9" />
+                    <line x1="${ml_bar}" y1="${mt_bar + effH_bar * 0.5}" x2="${ml_bar + effW_bar}" y2="${mt_bar + effH_bar * 0.5}" stroke="#f1f5f9" />
+                    <line x1="${ml_bar}" y1="${mt_bar + effH_bar}" x2="${ml_bar + effW_bar}" y2="${mt_bar + effH_bar}" stroke="#cbd5e1" />
+
+                    <!-- Grid labels -->
+                    <text x="${ml_bar - 6}" y="${mt_bar + 3}" text-anchor="end" style="font-size: 8px; fill: #94a3b8; font-weight: 700;">100%</text>
+                    <text x="${ml_bar - 6}" y="${mt_bar + effH_bar * 0.5 + 3}" text-anchor="end" style="font-size: 8px; fill: #94a3b8; font-weight: 700;">50%</text>
+                    <text x="${ml_bar - 6}" y="${mt_bar + effH_bar + 3}" text-anchor="end" style="font-size: 8px; fill: #94a3b8; font-weight: 700;">0%</text>
+
+                    <!-- Bars & targets loop -->
+                    ${barChartElementsHtml}
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right Column: Doughnut and KPI grid side-by-side -->
+            <div class="right-col">
+              <!-- Left sub-column: Pie chart card -->
+              <div class="right-sub-left">
+                <div class="middle-card" style="height: 100%;">
+                  <div class="middle-card-header">
+                    <h3>Peratus Pemberat Kerangka KPI</h3>
+                    <p>Pecahan sumbangan pemberat bagi semua KPI dari jumlah total 100.0%</p>
+                  </div>
+                  <div class="pie-container">
+                    <svg viewBox="0 0 440 440" style="width: 100%; max-width: 250px; height: auto; overflow: visible; display: block; margin: 0 auto;">
+                      <circle cx="220" cy="220" r="60" fill="none" stroke="#2563eb" stroke-width="1.5" opacity="0.8" />
+                      <circle cx="220" cy="220" r="95" fill="none" stroke="#f1f5f9" stroke-width="50" />
+                      ${doughnutSegmentsHtml}
+                      <text x="220" y="210" text-anchor="middle" style="font-size: 15px; font-weight: 800; font-family: sans-serif; fill: #64748b;">%</text>
+                      <text x="220" y="230" text-anchor="middle" style="font-size: 11px; font-weight: 900; font-family: sans-serif; fill: #1e293b; letter-spacing: 0.5px;">PECAHAN</text>
+                      <text x="220" y="244" text-anchor="middle" style="font-size: 11px; font-weight: 900; font-family: sans-serif; fill: #1e293b; letter-spacing: 0.5px;">PEMBERAT</text>
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Right sub-column: KPI Cards Grid -->
+              <div class="right-sub-right">
+                <div class="right-grid">
+                  ${kpiCardsHtml}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <script>
+          window.onload = function() {
+            setTimeout(function() {
+              window.print();
+            }, 600);
+          };
+        </script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+  };
+
   // Filter KPI Lists
   const filteredKpiItems = currentYearData.kpis.filter(item => {
     const matchesSearch = 
@@ -1435,7 +2962,16 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="mt-4 xl:mt-0 flex flex-wrap gap-2.5 relative z-10 shrink-0">
+                <div className="mt-4 xl:mt-0 flex flex-wrap gap-2.5 items-center relative z-10 shrink-0">
+                  <button
+                    id="btn_export_dashboard_pdf"
+                    onClick={handleExportDashboardPdf}
+                    className="bg-[#004a8d] hover:bg-[#003c73] text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center space-x-2 shadow-md transition-all duration-200 hover:scale-[1.02] cursor-pointer"
+                  >
+                    <FileText className="h-4.5 w-4.5 text-white" />
+                    <span>Eksport PDF</span>
+                  </button>
+
                   <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-center shadow-xs">
                     <span className="block text-[10px] text-slate-400 uppercase font-mono">Bulan Dinilai</span>
                     <select
@@ -2279,13 +3815,11 @@ export default function App() {
 
                 <div className="flex items-center space-x-2 flex-shrink-0 relative z-10">
                   <button
-                    onClick={() => {
-                      window.print();
-                    }}
-                    className="bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 font-bold px-4 py-2 rounded-xl text-xs flex items-center space-x-2 shadow-xs transition-colors"
+                    onClick={handleExportPdf}
+                    className="bg-[#004a8d] hover:bg-[#003c73] text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center space-x-2 shadow-md transition-all duration-200 hover:scale-[1.02] cursor-pointer"
                   >
-                    <FileText className="h-4 w-4 text-sky-500" />
-                    <span>Cetak Laporan</span>
+                    <FileText className="h-4.5 w-4.5 text-white" />
+                    <span>Eksport PDF</span>
                   </button>
                 </div>
               </div>
@@ -2307,13 +3841,12 @@ export default function App() {
                       onChange={(e) => setSearchQuery(e.target.value)}
                     />
                     <select
-                      className="text-xs border border-slate-300 rounded-lg px-2 py-1.5 bg-white text-slate-700 outline-none"
-                      value={filterKomponen}
-                      onChange={(e) => setFilterKomponen(e.target.value)}
+                      className="text-xs border border-slate-300 rounded-lg px-2 py-1.5 bg-white text-slate-700 outline-none font-semibold"
+                      value={selectedMonth}
+                      onChange={(e) => setSelectedMonth(e.target.value as MonthType)}
                     >
-                      <option value="SEMUA">Semua Komponen</option>
-                      {KOMPONEN_OPTIONS.map(opt => (
-                        <option key={opt} value={opt}>{opt}</option>
+                      {MONTHS_LIST.map(m => (
+                        <option key={m} value={m}>{m}</option>
                       ))}
                     </select>
                   </div>
@@ -2321,22 +3854,23 @@ export default function App() {
 
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs border-collapse">
-                    <thead className="bg-[#0f172a] text-slate-200 font-semibold tracking-wider font-mono">
+                    <thead className="bg-[#005fb5] text-white font-semibold tracking-wider font-mono">
                       <tr>
                         <th className="p-4 border-b border-slate-700 text-center">NO. KPI</th>
                         <th className="p-4 border-b border-slate-700">KOMPONEN & TERAS SSP</th>
-                        <th className="p-4 border-b border-slate-700">BIDANG UTAMA</th>
+                        <th className="p-4 border-b border-slate-700 text-center">BIDANG UTAMA</th>
                         <th className="p-4 border-b border-slate-700 w-[200px] min-w-[200px]">OBJEKTIF STRATEGIK & KPI</th>
                         <th className="p-4 border-b border-slate-700">BAHAGIAN PELAKSANA</th>
                         <th className="p-4 border-b border-slate-700 text-center">PEMBERAT</th>
                         <th className="p-4 border-b border-slate-700 text-center">PENCAPAIAN ({selectedMonth})</th>
                         <th className="p-4 border-b border-slate-700 text-center">STATUS</th>
+                        <th className="p-4 border-b border-slate-700 text-center">FAIL / LAMPIRAN</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {filteredKpiItems.length === 0 ? (
                         <tr>
-                          <td colSpan={8} className="p-8 text-center text-slate-400">
+                          <td colSpan={9} className="p-8 text-center text-slate-400">
                             Tiada KPI ditemui yang mematuhi carian atau komponen.
                           </td>
                         </tr>
@@ -2347,7 +3881,8 @@ export default function App() {
                             persenPencapaian: 0.0,
                             persenPemberat: item.pemberat,
                             persenPencapaianSebenar: 0.0,
-                            statusPencapaian: 'Tiada Pengisian'
+                            statusPencapaian: 'Tiada Pengisian',
+                            dokumenSokongan: null
                           };
 
                           return (
@@ -2361,8 +3896,8 @@ export default function App() {
                                 <span className="font-semibold text-slate-800 block text-xs">{item.komponen}</span>
                                 <span className="text-[10px] text-slate-400 font-mono block leading-tight">{item.noSsp}</span>
                               </td>
-                              <td className="p-4">
-                                <span className="bg-sky-50 text-sky-800 border border-sky-100 text-[10px] px-2 py-0.5 rounded font-medium">
+                              <td className="p-4 text-center">
+                                <span className="bg-sky-50 text-sky-800 border border-sky-100 text-[10px] px-2 py-0.5 rounded font-medium inline-block">
                                   {item.bidangUtama}
                                 </span>
                               </td>
@@ -2400,6 +3935,21 @@ export default function App() {
                                 }`}>
                                   {ach.statusPencapaian}
                                 </span>
+                              </td>
+                              <td className="p-4 text-center">
+                                {ach.dokumenSokongan ? (
+                                  <a 
+                                    href={ach.dokumenSokongan.dataUrl} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    title={`Buka ${ach.dokumenSokongan.name}`}
+                                    className="inline-flex items-center justify-center p-2 rounded-xl bg-sky-50 hover:bg-sky-100 text-[#004a8d] hover:text-sky-700 transition-all duration-200 border border-sky-100 shadow-xs cursor-pointer hover:scale-110"
+                                  >
+                                    <FileText className="h-4 w-4" />
+                                  </a>
+                                ) : (
+                                  <span className="text-slate-300 font-mono text-xs">-</span>
+                                )}
                               </td>
                             </tr>
                           );
@@ -2480,6 +4030,14 @@ export default function App() {
                   >
                     <Plus className="h-4 w-4" />
                     <span>TAMBAH KPI</span>
+                  </button>
+
+                  <button
+                    onClick={handleExportKerangkaPdf}
+                    className="bg-[#004a8d] hover:bg-[#003c73] text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center space-x-2 shadow-md transition-all duration-200 hover:scale-[1.02] cursor-pointer"
+                  >
+                    <FileText className="h-4.5 w-4.5 text-white" />
+                    <span>Eksport PDF</span>
                   </button>
                 </div>
               </div>
@@ -3820,15 +5378,22 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Row 2: Measurement */}
-                <div className="bg-white border border-slate-200/60 rounded-xl p-4.5 shadow-2xs">
-                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5 font-sans">
-                    KAEDAH PENGUKURAN
-                  </span>
-                  <p className="text-xs sm:text-sm font-semibold text-slate-600 leading-relaxed">
-                    {selectedKpiForModal.pengukuran || 'Tiada kaedah pengukuran khusus'}
-                  </p>
-                </div>
+                {/* Row 2: Status Pencapaian (Replaces Kaedah Pengukuran) */}
+                {(() => {
+                  const ach = currentYearData.monthlyAchievements[selectedMonth]?.achievements[selectedKpiForModal.noKpi] || {
+                    statusPencapaian: 'Belum Dilaksanakan'
+                  };
+                  return (
+                    <div className="bg-white border border-slate-200/60 rounded-xl p-4.5 shadow-2xs">
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5 font-sans">
+                        STATUS PENCAPAIAN
+                      </span>
+                      <p className="text-xs sm:text-sm font-semibold text-slate-600 leading-relaxed">
+                        {ach.statusPencapaian || 'Belum Dilaksanakan'}
+                      </p>
+                    </div>
+                  );
+                })()}
 
                 {/* Row 3: Current Month Achievement Card (Matches green style) */}
                 {(() => {
@@ -3859,12 +5424,12 @@ export default function App() {
                   };
 
                   return (
-                    <div className="bg-[#e2f0d9] border border-[#c5e0b4] rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between shadow-xs gap-4">
+                    <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between shadow-xs gap-4">
                       <div>
-                        <span className="text-[10px] font-black text-[#385723] uppercase tracking-widest block mb-1.5 font-sans">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5 font-sans">
                           PENCAPAIAN BULAN {translateMonthToMalay(selectedMonth)}
                         </span>
-                        <div className="text-4xl font-black text-[#385723] tracking-tight font-mono">
+                        <div className={`text-4xl font-black tracking-tight font-mono ${getGradeColorStyle(ach.persenPencapaian)}`}>
                           {ach.persenPencapaian.toFixed(1)}%
                         </div>
                       </div>
@@ -3872,8 +5437,8 @@ export default function App() {
                       <div className="text-left sm:text-right font-mono text-xs text-slate-700 space-y-1 pr-2">
                         <div>Sasaran: <span className="font-bold text-slate-900">{selectedKpiForModal.sasaran3.toLocaleString()}</span></div>
                         <div>Pencapaian: <span className="font-bold text-slate-900">{ach.pencapaian.toLocaleString()}</span></div>
-                        <div className="text-[#385723] font-semibold">
-                          Wajaran: <span className="font-extrabold">{ach.persenPencapaianSebenar.toFixed(2)}% / {selectedKpiForModal.pemberat.toFixed(0)}%</span>
+                        <div className="text-slate-600 font-semibold">
+                          Wajaran: <span className="font-extrabold text-slate-800">{ach.persenPencapaianSebenar.toFixed(2)}% / {selectedKpiForModal.pemberat.toFixed(0)}%</span>
                         </div>
                       </div>
                     </div>
