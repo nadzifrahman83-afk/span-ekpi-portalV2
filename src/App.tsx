@@ -1774,10 +1774,13 @@ export default function App() {
     const monthlyData = MONTHS_LIST.map((m) => {
       const group = currentYearData.monthlyAchievements[m];
       const avgValue = currentYearData.kpis.length > 0 && group
-        ? Number((currentYearData.kpis.reduce((sum, kpi) => {
-            const ach = group.achievements[kpi.noKpi];
-            return sum + (ach ? ach.persenPencapaian : 0);
-          }, 0) / currentYearData.kpis.length).toFixed(1))
+        ? (() => {
+            const sumVal = currentYearData.kpis.reduce((sum, kpi) => {
+              const ach = group.achievements[kpi.noKpi];
+              return sum + (ach ? ach.persenPencapaianSebenar : 0);
+            }, 0);
+            return Math.floor(sumVal * 10) / 10;
+          })()
         : 0.0;
       return { month: m, value: avgValue };
     });
@@ -1846,7 +1849,7 @@ export default function App() {
           text-anchor="middle" 
           style="font-size: 7.5px; font-weight: 800; font-family: monospace; fill: #004a8d;"
         >
-          ${d.value.toFixed(0)}%
+          ${d.value.toFixed(1)}%
         </text>
       `;
     });
@@ -2524,7 +2527,7 @@ export default function App() {
                     ${trendAreaD ? `<path d="${trendAreaD}" fill="url(#print-sweeping-grad)" />` : ''}
 
                     <!-- Line -->
-                    ${trendPathD ? `<path d="${trendPathD}" fill="none" stroke="#004a8d" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />` : ''}
+                    ${trendPathD ? `<path d="${trendPathD}" fill="none" stroke="#004a8d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />` : ''}
 
                     <!-- Points -->
                     ${trendPointsHtml}
@@ -3292,10 +3295,13 @@ export default function App() {
                           const monthlyData = MONTHS_LIST.map((m) => {
                             const group = currentYearData.monthlyAchievements[m];
                             const avgValue = currentYearData.kpis.length > 0 && group
-                              ? Number((currentYearData.kpis.reduce((sum, kpi) => {
-                                  const ach = group.achievements[kpi.noKpi];
-                                  return sum + (ach ? ach.persenPencapaian : 0);
-                                }, 0) / currentYearData.kpis.length).toFixed(1))
+                              ? (() => {
+                                  const sumVal = currentYearData.kpis.reduce((sum, kpi) => {
+                                    const ach = group.achievements[kpi.noKpi];
+                                    return sum + (ach ? ach.persenPencapaianSebenar : 0);
+                                  }, 0);
+                                  return Math.floor(sumVal * 10) / 10;
+                                })()
                               : 0.0;
                             return { month: m, value: avgValue };
                           });
@@ -3415,7 +3421,7 @@ export default function App() {
                                   d={pathD} 
                                   fill="none" 
                                   stroke="#004a8d" 
-                                  strokeWidth="3" 
+                                  strokeWidth="1.5" 
                                   strokeLinecap="round" 
                                   strokeLinejoin="round" 
                                 />
@@ -3460,7 +3466,7 @@ export default function App() {
                                           isActive || isHovered ? 'fill-[#004a8d] text-[10px] font-black bg-white px-1' : 'fill-slate-500'
                                         }`}
                                       >
-                                        {d.value.toFixed(0)}%
+                                        {d.value.toFixed(1)}%
                                       </text>
                                     </g>
                                   );
