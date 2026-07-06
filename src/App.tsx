@@ -3462,8 +3462,8 @@ export default function App() {
                                         x={getX(idx)} 
                                         y={getY(d.value) - (isActive || isHovered ? 9 : 6)} 
                                         textAnchor="middle" 
-                                        className={`text-[8px] font-mono font-bold transition-all duration-200 ${
-                                          isActive || isHovered ? 'fill-[#004a8d] text-[10px] font-black bg-white px-1' : 'fill-slate-500'
+                                        className={`text-[10px] font-mono font-bold transition-all duration-200 ${
+                                          isActive || isHovered ? 'fill-[#004a8d] text-[12px] font-black bg-white px-1' : 'fill-slate-500'
                                         }`}
                                       >
                                         {d.value.toFixed(1)}%
