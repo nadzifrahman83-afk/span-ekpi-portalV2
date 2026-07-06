@@ -1885,10 +1885,10 @@ export default function App() {
       const targetY = mt_bar + effH_bar - (targetPercent / 100) * effH_bar;
 
       const barColor = 
-        pct >= 90 ? '#10b981' : // emerald-500
-        pct >= 76 ? '#3b82f6' : // blue-500
-        pct >= 41 ? '#f59e0b' : // amber-500
-        '#f43f5e';             // rose-500
+        pct >= 91.0 ? '#10b981' : // green (cemerlang)
+        pct >= 71.0 ? '#0091ff' : // blue (mencapai)
+        pct >= 21.0 ? '#ffb300' : // yellow (memuaskan)
+        '#f43f5e';                // red (lemah)
 
       barChartElementsHtml += `
         <!-- Background container bar -->
@@ -1972,10 +1972,10 @@ export default function App() {
       const cleanText = kpi.kpi.trim().toUpperCase();
 
       const strokeColorClass = 
-        pct >= 90 ? '#10b981' :
-        pct >= 76 ? '#3b82f6' :
-        pct >= 41 ? '#f59e0b' :
-        '#f43f5e';
+        pct >= 91.0 ? '#10b981' : // green (cemerlang)
+        pct >= 71.0 ? '#0091ff' : // blue (mencapai)
+        pct >= 21.0 ? '#ffb300' : // yellow (memuaskan)
+        '#f43f5e';                // red (lemah)
 
       const formattedNoKpi = kpi.noKpi.toUpperCase().includes('KPI') ? kpi.noKpi.toUpperCase() : `KPI ${kpi.noKpi}`;
 
@@ -3559,10 +3559,10 @@ export default function App() {
 
                                   // Decide color based on percentage
                                   const barColor = 
-                                    pct >= 90 ? '#10b981' : // emerald-500
-                                    pct >= 76 ? '#3b82f6' : // blue-500
-                                    pct >= 41 ? '#f59e0b' : // amber-500
-                                    '#f43f5e';             // rose-500
+                                    pct >= 91.0 ? '#10b981' : // green (cemerlang)
+                                    pct >= 71.0 ? '#0091ff' : // blue (mencapai)
+                                    pct >= 21.0 ? '#ffb300' : // yellow (memuaskan)
+                                    '#f43f5e';                // red (lemah)
 
                                   const isHovered = hoveredBarKpi && hoveredBarKpi.id === kpi.id;
                                   const hasAnotherHovered = hoveredBarKpi && hoveredBarKpi.id !== kpi.id;
@@ -3749,16 +3749,16 @@ export default function App() {
                           : words.slice(0, 3).join(' ') + '...';
 
                         const strokeColorClass = 
-                          ach.persenPencapaian >= 90 ? 'text-emerald-500 stroke-emerald-500' :
-                          ach.persenPencapaian >= 76 ? 'text-blue-500 stroke-blue-500' :
-                          ach.persenPencapaian >= 41 ? 'text-amber-500 stroke-amber-500' :
-                          'text-[#f92f60] stroke-rose-500';
+                          ach.persenPencapaian >= 91.0 ? 'text-[#10b981] stroke-[#10b981]' :
+                          ach.persenPencapaian >= 71.0 ? 'text-[#0091ff] stroke-[#0091ff]' :
+                          ach.persenPencapaian >= 21.0 ? 'text-[#ffb300] stroke-[#ffb300]' :
+                          'text-[#f43f5e] stroke-[#f43f5e]';
 
                         const borderGradeColor = 
-                          ach.persenPencapaian >= 90 ? '#10b981' :
-                          ach.persenPencapaian >= 76 ? '#3b82f6' :
-                          ach.persenPencapaian >= 41 ? '#f59e0b' :
-                          '#f92f60';
+                          ach.persenPencapaian >= 91.0 ? '#10b981' :
+                          ach.persenPencapaian >= 71.0 ? '#0091ff' :
+                          ach.persenPencapaian >= 21.0 ? '#ffb300' :
+                          '#f43f5e';
 
                         return (
                           <div 
